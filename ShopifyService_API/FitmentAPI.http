@@ -1,0 +1,28 @@
+### Fitment API Tests
+
+### Send Fitment Data to Shopify - Valid Variant ID
+POST {{baseUrl}}/api/Fitment/SendFitmentData/12345
+Content-Type: application/json
+
+###
+
+### Send Fitment Data to Shopify - Invalid Variant ID (0)
+POST {{baseUrl}}/api/Fitment/SendFitmentData/0
+Content-Type: application/json
+
+###
+
+### Send Fitment Data to Shopify - Negative Variant ID
+POST {{baseUrl}}/api/Fitment/SendFitmentData/-1
+Content-Type: application/json
+
+###
+
+### Send Fitment Data to Shopify - Non-existent Variant ID
+POST {{baseUrl}}/api/Fitment/SendFitmentData/999999
+Content-Type: application/json
+
+###
+
+# Variables for testing
+@baseUrl = https://localhost:7001
