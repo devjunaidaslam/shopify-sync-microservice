@@ -1,6 +1,5 @@
 using AutoMapper;
 using ClosedXML.Excel;
-using DocumentFormat.OpenXml.Office2010.Excel;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;

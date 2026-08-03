@@ -17,17 +17,13 @@ namespace ShopifyService_API.Controllers
             _logger = logger;
         }
 
-        /// <summary>
-        /// Health check endpoint - returns 200 OK if service is running and database is accessible
-        /// </summary>
         [HttpGet]
         public async Task<IActionResult> Get()
         {
             try
             {
-                // Test database connection
                 var canConnect = await _dbContext.Database.CanConnectAsync();
-                
+
                 if (!canConnect)
                 {
                     _logger.LogWarning("ShopifyService health check: Database connection failed");

@@ -61,7 +61,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
 
                 var variantGid = $"gid://shopify/ProductVariant/{request.VariantId.ToString()}";
                 
-                // Get the variant with its product from the database
                 var variant = await _shopifyRepo.GetVariantByShopifyIdAsync(variantGid);
                 
                 if (variant == null || variant.Product == null)
@@ -77,7 +76,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                     productId, request.VariantId);
                 
 
-                // Now update the variant using productVariantsBulkUpdate
                 var updateMutation = @"
                     mutation productVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
                       productVariantsBulkUpdate(productId: $productId, variants: $variants) {
@@ -121,7 +119,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
 
                 using var updateDoc = JsonDocument.Parse(updateResponseContent);
 
-                // Check for top-level errors
                 if (updateDoc.RootElement.TryGetProperty("errors", out var topLevelErrors))
                 {
                     var errorMessages = topLevelErrors
@@ -137,7 +134,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                     throw new Exception();
                 }
 
-                // Check for user errors
                 var userErrors = updateDoc.RootElement
                     .GetProperty("data")
                     .GetProperty("productVariantsBulkUpdate")
@@ -183,13 +179,11 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                 var updatedValueJson = string.Empty;
                 var variantGuid = $"gid://shopify/ProductVariant/{request.VariantId.ToString()}";
 
-                // Query Shopify for the variant's metafields 
                 JsonDocument jsonDoc = await QueryVariantWithNameSpaceAsync(client, variantGuid, variPriceNameSpace);
 
                 jsonDoc.RootElement.TryGetProperty("data", out var dataElement);
                 dataElement.TryGetProperty("productVariant", out var productVariantElement);
 
-                // Check if the variant exists in the Shopify response
                 if (productVariantElement.ValueKind == JsonValueKind.Null)
                 {
                     string errorMessage = $"Variant with ID {variantGuid} does not exist in Shopify.";
@@ -198,21 +192,17 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                     throw new Exception();
                 }
 
-                // Find the metafield node with the key matching the custom prices metaFieldKey
                 var metafieldNode = productVariantElement
                                     .GetProperty("metafields").GetProperty("edges")
                                     .EnumerateArray()
                                     .FirstOrDefault(edge => edge.GetProperty("node").GetProperty("key").GetString() == metaFieldKey);
 
-                // Extract the list of location Shopify IDs from the request
                 var locationShopifyIds = request.LocationPricePairs.Select(x => x.LocationId).ToList();
 
-                // If the metafield node is undefined, create a new prices dictionary
                 if (metafieldNode.ValueKind == JsonValueKind.Undefined)
                 {
                     var prices = new Dictionary<string, string>();
 
-                    // Populate the prices dictionary with location IDs and their new prices formatted as strings
                     foreach (var pair in request.LocationPricePairs)
                     {
                         prices[pair.LocationId] = pair.NewPrice.ToString("0.00");
@@ -225,25 +215,19 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
 
                     var currentValueJson = metafieldNode.GetProperty("node").GetProperty("value").GetString();
 
-                    // Deserialize the current JSON string into a dictionary of prices
                     var prices = JsonSerializer.Deserialize<Dictionary<string, string>>(currentValueJson);
 
-                    // Get the list of existing Shopify location IDs from the prices dictionary keys
                     var shopifyLocationIds = prices.Keys.ToList();
 
-                    // Identify existing locations to update from the request
                     var existinglocationToUpdate = request.LocationPricePairs.Where(x => shopifyLocationIds.Contains(x.LocationId)).Select(x => new { x.LocationId, x.NewPrice }).ToList();
 
-                    // Identify new locations to add from the request
                     var newLocationToAdd = request.LocationPricePairs.Where(x => !(shopifyLocationIds.Contains(x.LocationId))).Select(x => new { x.LocationId, x.NewPrice }).ToList();
 
-                    // Update prices for existing locations
                     foreach (var pair in existinglocationToUpdate)
                     {
                         prices[pair.LocationId] = pair.NewPrice.ToString("0.00");
                     }
 
-                    // Add prices for new locations
                     foreach (var pair in newLocationToAdd)
                     {
                         prices[pair.LocationId] = pair.NewPrice.ToString("0.00");
@@ -252,7 +236,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                     updatedValueJson = JsonSerializer.Serialize(prices);
                 }
 
-                // Update the Shopify variant metafield with the new prices JSON string
 
                var variables = new
                 {
@@ -273,18 +256,15 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
 
                 var updateDoc = JsonDocument.Parse(updateJson);
 
-                // Extract user errors from the update response
                 var userErrors = updateDoc.RootElement
                     .GetProperty("data")
                     .GetProperty("metafieldsSet")
                     .GetProperty("userErrors");
 
-                // If there are no user errors, update the local database with the new prices
                 if (userErrors.GetArrayLength() == 0)
                 {
                     try
                     {
-                        // Retrieve the variant entity from the repository by Shopify variant ID
                         var variant = await _shopifyRepo.GetVariantByShopifyIdAsync(variantGuid);
                         if (variant == null)
                         {
@@ -292,7 +272,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                             return updateJson; // Return success from Shopify but log warning
                         }
 
-                        // Retrieve location entities from the repository by Shopify location IDs
                         var dbLocations = await _shopifyRepo.GetLocationsByShopifyIdsAsync(locationShopifyIds);
 
                         if (dbLocations == null || !dbLocations.Any())
@@ -301,7 +280,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                             return updateJson;
                         }
 
-                        // Get existing variant prices for this variant
                         var existingVariantPrices = await _shopifyRepo.GetVariantPricesByVariantIdAsync(variant.Id);
 
                         _logger.LogInformation("[ShopifyUpdateService] Found {Count} existing variant prices for Variant {VariantId}",
@@ -311,10 +289,8 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                         var variantPricesToAdd = new List<VariantPrice>();
 
 
-                        // For each location-price pair in the request
                         foreach (var pair in request.LocationPricePairs)
                         {
-                            // Find the corresponding location entity in the database
                             var dbLocation = dbLocations.FirstOrDefault(x => x.ShopifyId == pair.LocationId);
 
                             if (dbLocation == null)
@@ -326,7 +302,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                             _logger.LogDebug("[ShopifyUpdateService] Processing price update for Variant {VariantId} (DB ID: {DbVariantId}), Location {LocationId} (DB ID: {DbLocationId})",
                                 request.VariantId, variant.Id, pair.LocationId, dbLocation.Id);
 
-                            // Check if VariantPrice(s) already exist for this variant-location combination
                     
                             var matchingVariantPrices = existingVariantPrices?
                                 .Where(vp => vp.VariantId == variant.Id && vp.LocationId == dbLocation.Id)
@@ -337,7 +312,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                                 _logger.LogWarning("[ShopifyUpdateService] Found {Count} existing price records for Variant {VariantId}, Location {LocationId}",
                                     matchingVariantPrices.Count, variant.Id, dbLocation.Id);
 
-                                // Update the first one
                                 var priceToUpdate = matchingVariantPrices.First();
                                 priceToUpdate.Price = pair.NewPrice.ToString("0.00");
                                 priceToUpdate.UpdatedAt = DateTime.UtcNow;
@@ -350,7 +324,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                             else
                             {
 
-                                // Create new VariantPrice entity
                                 var newVariantPrice = new VariantPrice()
                                 {
                                     VariantId = variant.Id,
@@ -365,14 +338,12 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                             }
                         }
 
-                        // Update existing prices
                         if (variantPricesToUpdate.Any())
                         {
                             await _shopifyRepo.UpdateVariantPriceAsync(variantPricesToUpdate);
                             _logger.LogInformation("[ShopifyUpdateService] Updated {Count} existing variant prices", variantPricesToUpdate.Count);
                         }
 
-                        // Add new prices
                         if (variantPricesToAdd.Any())
                         {
                             await _shopifyRepo.AddVariantPriceAsync(variantPricesToAdd);
@@ -543,7 +514,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                         _logger.LogDebug("[ShopifyUpdateService] Processing inventory update for VariantId: {VariantId}, LocationId: {LocationId}, Quantity: {Quantity}", 
                             item.VariantId, item.LocationId, item.AvailableQuantity);
 
-                        // First, get the inventory item ID from the variant
                         var inventoryItemId = await GetInventoryItemIdFromVariantAsync(client, item.VariantId);
                         if (string.IsNullOrEmpty(inventoryItemId))
                         {
@@ -553,7 +523,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                             continue;
                         }
 
-                        // Use inventorySetOnHandQuantities mutation for inventory updates
                         var mutation = @"
                             mutation inventorySetOnHandQuantities($input: InventorySetOnHandQuantitiesInput!) {
                               inventorySetOnHandQuantities(input: $input) {
@@ -609,7 +578,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
 
                         using var jsonDoc = JsonDocument.Parse(responseContent);
 
-                        // Check for top-level errors
                         if (jsonDoc.RootElement.TryGetProperty("errors", out var topLevelErrors))
                         {
                             var errorMessages = topLevelErrors
@@ -622,7 +590,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                             continue;
                         }
 
-                        // Check for user errors in the mutation response
                         if (jsonDoc.RootElement.TryGetProperty("data", out var data) &&
                             data.TryGetProperty("inventorySetOnHandQuantities", out var setQuantities))
                         {
@@ -639,7 +606,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                                 continue;
                             }
 
-                            // Success case
                             if (setQuantities.TryGetProperty("inventoryAdjustmentGroup", out var adjustmentGroup) && 
                                 adjustmentGroup.TryGetProperty("changes", out var changes) &&
                                 changes.GetArrayLength() > 0)
@@ -664,7 +630,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                     }
                 }
 
-                // Prepare final response
                 var response = new
                 {
                     TotalProcessed = request.InventoryItems.Count,
@@ -697,12 +662,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
             }
         }
 
-        /// <summary>
-        /// Gets the inventory item ID from a variant ID using Shopify GraphQL API.
-        /// </summary>
-        /// <param name="client">HTTP client configured for Shopify API.</param>
-        /// <param name="variantId">The Shopify variant ID.</param>
-        /// <returns>The inventory item ID or null if not found.</returns>
         private async Task<string> GetInventoryItemIdFromVariantAsync(HttpClient client, long variantId)
         {
             _logger.LogDebug("[ShopifyUpdateService] GetInventoryItemIdFromVariantAsync called for variant: {VariantId}", variantId);

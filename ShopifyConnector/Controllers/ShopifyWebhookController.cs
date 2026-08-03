@@ -4,10 +4,6 @@ using PartFinderMicroServices_BusinessLogicLayer.Service.Interface;
 using PartFinderMicroServices_DataAccessLayer.Entities;
 using PartFinderMicroServices_DataAccessLayer.Enum;
 using PartFinderMicroServices_DataAccessLayer.Model;
-using System.Security.Cryptography;
-using System.Text;
-using System.Text.Json;
-using System.Text.Json.Nodes;
 
 namespace ShopifyConnector.Controllers
 {
@@ -15,11 +11,6 @@ namespace ShopifyConnector.Controllers
     [ApiController]
     public class ShopifyWebhookController : ControllerBase
     {
-        //private readonly string AccessToken;
-        //public ShopifyWebhookController(IOptions<ShopifySetting> settings)
-        //{
-        //    AccessToken = settings.Value.Token;
-        //}
         private readonly IWebHookService _webHookService;
         private readonly ICommonService _commonService;
         private readonly IShopifyService _shopifyService;
@@ -28,14 +19,6 @@ namespace ShopifyConnector.Controllers
 
         ResponseMessageList _ApiResponseMessageList = new ResponseMessageList();
 
-        /// <summary>
-        /// Initializes a new instance of the <see cref="ShopifyWebhookController"/> class.
-        /// </summary>
-        /// <param name="webHookService">The webhook service to process Shopify webhooks.</param>
-        /// <param name="commonService">The common service for logging.</param>
-        /// <param name="shopifyService">Shopify service that orchestrates RabbitMQ operations.</param>
-        /// <param name="setting">Shopify settings including webhook secret.</param>
-        /// <param name="logger">Logger for application logging.</param>
         public ShopifyWebhookController(IWebHookService webHookService, ICommonService commonService, IShopifyService shopifyService, IOptions<ShopifySetting> setting, ILogger<ShopifyWebhookController> logger)
         {
             _webHookService = webHookService;
@@ -45,28 +28,24 @@ namespace ShopifyConnector.Controllers
             _logger = logger;
         }
 
-        /// <summary>
-        /// Handles the Shopify webhook for product creation or update. It send data to RabbitMQ Message Broker
-        /// </summary>
-        /// <returns>Status of the webhook processing or an error response.</returns>
         [HttpPost("UpsertProduct")]
         public async Task<IActionResult> UpsertProduct()
         {
             var hmacHeader = Request.Headers["X-Shopify-Hmac-Sha256"].FirstOrDefault();
             using var reader = new StreamReader(Request.Body);
             var body = await reader.ReadToEndAsync();
-           bool isValid = _webHookService.IsValidWebhook(body, hmacHeader, _webHookSecret);
+            bool isValid = _webHookService.IsValidWebhook(body, hmacHeader ?? string.Empty, _webHookSecret);
 
             if (!isValid)
             {
-                return Unauthorized(); // 401
+                return Unauthorized();
             }
 
             try
             {
                 _logger.LogInformation("[ShopifyWebhookController] Sending ProductWebhook to queue");
 
-                await _shopifyService.SendWebhookToQueueAsync(body, QueueName.ProductWebhook.ToString() );
+                await _shopifyService.SendWebhookToQueueAsync(body, QueueName.ProductWebhook.ToString());
                 return Ok("Product processed successfully.");
             }
             catch (Exception ex)
@@ -76,10 +55,6 @@ namespace ShopifyConnector.Controllers
             }
         }
 
-        /// <summary>
-        /// Handles the Shopify webhook for collection creation or update.
-        /// </summary>
-        /// <returns></returns>
         [HttpPost("UpsertCollection")]
         public async Task<IActionResult> UpsertCollectionAsync()
         {
@@ -87,18 +62,15 @@ namespace ShopifyConnector.Controllers
             using var reader = new StreamReader(Request.Body);
             var body = await reader.ReadToEndAsync();
 
-            bool isValid = _webHookService.IsValidWebhook(body, hmacHeader, _webHookSecret);
+            bool isValid = _webHookService.IsValidWebhook(body, hmacHeader ?? string.Empty, _webHookSecret);
 
             if (!isValid)
             {
-                return Unauthorized(); // 401
+                return Unauthorized();
             }
 
             try
             {
-                // Deserialize the JSON body to JsonElement
-                //var jsonBody = System.Text.Json.JsonSerializer.Deserialize<JsonElement>(body);
-                //await _webHookService.ProcessCollectionCreatedOrUpdatedAsync(jsonBody);
                 _logger.LogInformation("[ShopifyWebhookController] Sending CollectionWebhook to queue");
                 await _shopifyService.SendWebhookToQueueAsync(body, QueueName.CollectionWebhook.ToString());
                 return Ok("Collection processed successfully.");
@@ -110,10 +82,6 @@ namespace ShopifyConnector.Controllers
             }
         }
 
-        /// <summary>
-        /// Handles the Shopify webhook for inventory level updates.
-        /// </summary>
-        /// <returns></returns>
         [HttpPost("UpdateInventoryLevel")]
         public async Task<IActionResult> UpdateInventoryLevel()
         {
@@ -121,18 +89,15 @@ namespace ShopifyConnector.Controllers
             using var reader = new StreamReader(Request.Body);
             var body = await reader.ReadToEndAsync();
 
-            bool isValid = _webHookService.IsValidWebhook(body, hmacHeader, _webHookSecret);
+            bool isValid = _webHookService.IsValidWebhook(body, hmacHeader ?? string.Empty, _webHookSecret);
 
             if (!isValid)
             {
-                return Unauthorized(); // 401
+                return Unauthorized();
             }
 
             try
             {
-                // Deserialize the JSON body to JsonElement
-                //var jsonBody = System.Text.Json.JsonSerializer.Deserialize<JsonElement>(body);
-                //await _webHookService.UpdateInventoryLevel(jsonBody);
                 _logger.LogInformation("[ShopifyWebhookController] Sending InventoryLevelWebhook to queue");
                 await _shopifyService.SendWebhookToQueueAsync(body, QueueName.InventoryLevelWebhook.ToString());
                 return Ok("UpdateInventoryLevel processed successfully.");
@@ -144,11 +109,6 @@ namespace ShopifyConnector.Controllers
             }
         }
 
-        /// <summary>
-        /// Handles the Shopify webhook for order creation or update.
-        /// This endpoint receives order data from Shopify and queues it for processing.
-        /// </summary>
-        /// <returns>Status of the webhook processing or an error response.</returns>
         [HttpPost("UpsertOrder")]
         public async Task<IActionResult> UpsertOrder()
         {
@@ -156,12 +116,12 @@ namespace ShopifyConnector.Controllers
             using var reader = new StreamReader(Request.Body);
             var body = await reader.ReadToEndAsync();
 
-            bool isValid = _webHookService.IsValidWebhook(body, hmacHeader, _webHookSecret);
+            bool isValid = _webHookService.IsValidWebhook(body, hmacHeader ?? string.Empty, _webHookSecret);
 
             if (!isValid)
             {
                 _logger.LogWarning("[ShopifyWebhookController] Invalid HMAC signature for order webhook");
-                return Unauthorized(); // 401
+                return Unauthorized();
             }
 
             try
@@ -177,12 +137,6 @@ namespace ShopifyConnector.Controllers
                 return BadRequest(ResponseHelper.BadRequest(_ApiResponseMessageList.FailResponseMessage));
             }
         }
-
-        //[HttpGet]
-        //public  IActionResult HealthCheck()
-        //{
-        //    return Ok("Health Check Successfully");
-        //}
 
     }
 }

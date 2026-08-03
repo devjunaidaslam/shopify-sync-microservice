@@ -157,7 +157,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                 using var doc = JsonDocument.Parse(json);
                 var root = doc.RootElement.GetProperty("data").GetProperty("collections");
 
-                // Save next cursor for future pages
                 string nextCursor = root.GetProperty("pageInfo").GetProperty("endCursor").GetString();
                 if (nextCursor != null && !_tracker.PageCursors.ContainsKey(page))
                 {
@@ -263,7 +262,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                     using var doc = JsonDocument.Parse(json);
                     var root = doc.RootElement.GetProperty("data").GetProperty("locations");
 
-                    // Update pagination
                     hasNextPage = root.GetProperty("pageInfo").GetProperty("hasNextPage").GetBoolean();
                     afterCursor = root.GetProperty("pageInfo").GetProperty("endCursor").GetString();
 
@@ -298,7 +296,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                     currentPage++;
                 }
 
-                // Save locations in batch
                 if (locations != null && locations.Any())
                 {
                     _logger.LogInformation("[ShopifyService] Saving {Count} locations to repository", locations.Count);
@@ -376,7 +373,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                     using var doc = JsonDocument.Parse(json);
                     var root = doc.RootElement.GetProperty("data").GetProperty("products");
 
-                    // Pagination control
                     hasNextPage = root.GetProperty("pageInfo").GetProperty("hasNextPage").GetBoolean();
                     afterCursor = root.GetProperty("pageInfo").GetProperty("endCursor").GetString();
 
@@ -452,13 +448,11 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
             catch (Exception ex)
             {
                 _logger.LogError(ex, "[ShopifyService] Failed to collect cursors: {Message}", ex.Message);
-                // Log error in history and abort
                 errors.Add(ex.Message);
                 await _shopifyRepo.AddHistoryInventory(new HistoryInventory() { InProgress = false, IsSuccess = false, LastSyncDate = DateTime.UtcNow, TotalProductsProcessed = 0, LastRecordDate = null, ErrorMessage = $"Failed to collect cursors: {ex.Message}" });
                 throw;
             }
 
-            //Add Initial Record in Database
             _logger.LogDebug("[ShopifyService] Creating initial history record for {CursorCount} cursors", cursors.Count);
             historyId = await _shopifyRepo.AddHistoryInventory(new HistoryInventory()
             {
@@ -523,7 +517,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                         var dbProduct = await _shopifyRepo.GetProductByShopifyIdAsync(shopifyProductId);
                         if (dbProduct == null)
                         {
-                            // Create new product
                             Product edgeProduct = await SetProductAsync(node, shopifyProductId);
                             lastRecordDate = edgeProduct.CreatedAt;
                             products.Add(edgeProduct);
@@ -581,7 +574,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                         }
                         else
                         {
-                            // Update existing product and its children
                             await SetProductAndChildrenToUpdateAsync(node, dbProduct);
                             var updatedProduct = await UpdateProductAsync(dbProduct);
                             lastRecordDate = updatedProduct.UpdatedAt;
@@ -602,10 +594,8 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                                 });
                         }
 
-                        // Make DB calls to save bulk data in a single transaction
                         await SaveShopifyProductDataAsync(products, variants, options, productOptions, optionValues, variantOptionValues, tags, productTags, collections, productCollections, inventoryLevels, productId: productId);
                         
-                        // Log successful product import transactions for each product
                         foreach (var product in products)
                         {
                             await _transactionHistoryService.LogSuccessTransactionAsync(
@@ -648,7 +638,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                 }
                 finally
                 {
-                    // Log page result in history
                     await _shopifyRepo.UpdateHistoryInventory(historyId, new HistoryInventory()
                     {
                         IsSuccess = error == null,
@@ -666,7 +655,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                 // }
             };
 
-            //Final call for history
             var totalTime = DateTime.UtcNow - startAt;
             if (!(errors != null && errors.Any()))
             {
@@ -685,12 +673,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
             }
         }
 
-        /// <summary>
-        /// Retrieves products from Shopify using the specified cursor and filter.
-        /// </summary>
-        /// <param name="cursor">The pagination cursor for Shopify API.</param>
-        /// <param name="filter">The filter string for product search.</param>
-        /// <returns>The products JSON element or null if not found.</returns>
         private async Task<JsonElement?> GetProductsFromShopify(string cursor, string filter)
         {
             _logger.LogDebug("[ShopifyService] GetProductsFromShopify called with cursor: {Cursor}, filter: {Filter}", cursor, filter);
@@ -732,7 +714,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                         Filter = filter
                     }
                     );
-                    // Log status code & reason
                     var errorMsg = $"Shopify API error: {(int)response.StatusCode} {response.ReasonPhrase}";
                     _commonService.ErrorLogs(errorMsg, "GetProductsFromShopify", 1, "Failed to fetch products", response.ToString());
                     return null;
@@ -745,7 +726,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                 if (!root.TryGetProperty("data", out JsonElement dataElement) ||
                     !dataElement.TryGetProperty("products", out JsonElement productsElement))
                 {
-                    // Log error and return null if products not found
                     await _shopifyRepo.AddShopifyQueueAsync(new ShopifyDataQueue()
                     {
                         Cursor = cursor,
@@ -780,12 +760,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
             }
         }
 
-        /// <summary>
-        /// Retrieves all cursors for paginated Shopify product queries based on filter and update date.
-        /// </summary>
-        /// <param name="filter">The filter string for product search.</param>
-        /// <param name="updatedAfter">Optional date to filter products updated after this date.</param>
-        /// <returns>A list of cursors for pagination.</returns>
         private async Task<List<string>> GetCursors(string filter, DateTime? updatedAfter)
         {
             _logger.LogDebug("[ShopifyService] GetCursors called with filter: {Filter}, updatedAfter: {UpdatedAfter}",
@@ -949,12 +923,10 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                     {
                         _logger.LogInformation("[ShopifyService] Product {ProductId} exists, updating existing product", productId);
                         await SetProductAndChildrenToUpdateAsync(productElement, dbProduct);
-                        // Update existing product
                         var updatedProduct = await UpdateProductAsync(dbProduct);
                         await SyncProductImagesAsync(dbProduct, productElement);
                         _logger.LogInformation("[ShopifyService] Product {ProductId} updated successfully", productId);
                         
-                        // Log successful product update transaction
                         await _transactionHistoryService.LogSuccessTransactionAsync(
                             shopifyProductId,
                             "product",
@@ -1046,7 +1018,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
 
                     _logger.LogInformation("[ShopifyService] Product {ProductId} imported successfully", productId);
                     
-                    // Log successful product creation transaction
                     await _transactionHistoryService.LogSuccessTransactionAsync(
                         shopifyProductId,
                         "product",
@@ -1075,7 +1046,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
             }
             catch (Exception ex)
             {
-                // Check if the failed product is already recorded in the failed items processing table  
                 var queueProduct =  await _shopifyRepo.GetProductFromQueueAsync(productId.ToString());
 
              if (queueProduct == null || queueProduct.RetryCount > 10)
@@ -1093,8 +1063,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                 }
 
 
-
-                // Log failed product import transaction
                 await _transactionHistoryService.LogFailedTransactionAsync(
                     $"gid://shopify/Product/{productId}",
                     "product",
@@ -1122,7 +1090,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
             _logger.LogDebug("[ShopifyService] SyncProductImagesAsync called for product ID: {ProductId}", product.Id);
             try
             {
-                // Get all product image IDs from Shopify
                 var shopifyImageIds = new List<string>();
                 if (productElement.TryGetProperty("images", out var imagesNode))
                 {
@@ -1136,14 +1103,11 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
 
                 _logger.LogDebug("[ShopifyService] Found {Count} Shopify images for product {ProductId}", shopifyImageIds.Count, product.Id);
 
-                // Get existing product images from database
                 var existingProductImages = await _shopifyRepo.GetProductImagesByProductIdAsync(product.Id);
                 var existingImageShopifyIds = existingProductImages.Select(pi => pi.ImageShopifyId).ToHashSet();
 
-                // Find images that exist in Shopify but not in database
                 var newImageIds = shopifyImageIds.Where(id => !existingImageShopifyIds.Contains(id)).ToList();
 
-                // Create ProductImage objects for new images
                 var newProductImages = new List<ProductImage>();
                 if (productElement.TryGetProperty("images", out var imagesNodeForNew))
                 {
@@ -1152,7 +1116,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                         var imageNode = imageEdge.GetProperty("node");
                         var imageId = imageNode.GetProperty("id").GetString();
 
-                        // Only add if this image is in our new images list
                         if (!string.IsNullOrEmpty(imageId) && newImageIds.Contains(imageId))
                         {
                             var productImage = new ProductImage
@@ -1167,7 +1130,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                     }
                 }
 
-                // Add new images to database
                 if (newProductImages.Any())
                 {
                     _logger.LogInformation("[ShopifyService] Adding {Count} new images for product {ProductId}", newProductImages.Count, product.Id);
@@ -1262,14 +1224,12 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
   }}";
 
 
-
                 var variables = new { id = formattedProductId };
                 var requestBody = new { query, variables };
                 var content = new StringContent(JsonSerializer.Serialize(requestBody), Encoding.UTF8, "application/json");
                 var response = await client.PostAsync("", content);
                 if (!response.IsSuccessStatusCode)
                 {
-                    // Log status code & reason
                     var errorMsg = $"Shopify API error: {(int)response.StatusCode} {response.ReasonPhrase}";
                     _commonService.ErrorLogs(errorMsg, "ImportProductFromShopifyAsync", 1, "Failed to fetch products", response.ToString());
                     return null;
@@ -1294,20 +1254,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
             }
         }
 
-        /// <summary>
-        /// Saves all Shopify product-related data to the database.
-        /// </summary>
-        /// <param name="products">List of products to save.</param>
-        /// <param name="variants">List of variants to save.</param>
-        /// <param name="options">List of options to save.</param>
-        /// <param name="productOptions">List of product options to save.</param>
-        /// <param name="optionValues">List of option values to save.</param>
-        /// <param name="variantOptionValues">List of variant option values to save.</param>
-        /// <param name="tags">List of tags to save.</param>
-        /// <param name="productTags">List of product tags to save.</param>
-        /// <param name="collections">List of collections to save.</param>
-        /// <param name="productCollections">List of product collections to save.</param>
-        /// <param name="inventoryLevels">List of inventory levels to save.</param>
         private async Task SaveShopifyProductDataAsync(List<Product> products, List<Variant> variants, List<Option> options, List<ProductOption> productOptions, List<OptionValue> optionValues, List<VariantOptionValue> variantOptionValues, List<Tag> tags, List<ProductTag> productTags, List<Collection> collections, List<ProductCollection> productCollections, List<InventoryLevel> inventoryLevels, string cursor = "No Cursor Found", string? filter = null, string? productId = null)
         {
             try
@@ -1330,7 +1276,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
             }
             catch (Exception ex)
             {
-                // Check if the failed product is already recorded in the failed items processing table
                 var queueProduct = await _shopifyRepo.GetProductFromQueueAsync(productId.ToString());
 
                 if (queueProduct == null || queueProduct.RetryCount > 10)
@@ -1364,13 +1309,11 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                 item.Cursor, item.ProductShopifyId ?? "none");
             try
             {
-                //logic
                 if (item.Cursor == "No Cursor Found")
                 {
                     _logger.LogDebug("[ShopifyService] Retrying failed product import for ID: {ProductId}", item.ProductShopifyId);
                     var result = await ImportProductByIdAsync(Convert.ToInt64(item.ProductShopifyId));
 
-                    // Check if the operation was successful
                     if (result != null && (result.Contains("Successfully") || result.Contains("updated")))
                     {
                         _logger.LogInformation("[ShopifyService] Product retry successful for ID: {ProductId}, updating queue status", item.ProductShopifyId);
@@ -1417,7 +1360,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                         var dbProduct = await _shopifyRepo.GetProductByShopifyIdAsync(shopifyProductId);
                         if (dbProduct == null)
                         {
-                            // Create new product
                             Product edgeProduct = await SetProductAsync(node, shopifyProductId);
                             products.Add(edgeProduct);
 
@@ -1473,7 +1415,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                         else
                         {
                             await SetProductAndChildrenToUpdateAsync(node, dbProduct);
-                            // Update existing product
                             await UpdateProductAsync(dbProduct);
                         }
                     }
@@ -1547,7 +1488,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                 {
                     var invNode = invEdge.GetProperty("node");
 
-                    // Location
                     var locationNode = invNode.GetProperty("location");
                     var addressNode = locationNode.GetProperty("address");
                     var locationShopifyId = locationNode.GetProperty("id").GetString().Split('/').Last();
@@ -1566,7 +1506,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                         locations.Add(dbLocation);
                     }
 
-                    // Extract available quantity
                     int availableQuantity = 0;
                     if (invNode.TryGetProperty("quantities", out var quantitiesElement))
                     {
@@ -1608,12 +1547,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
             }
         }
 
-        /// <summary>
-        /// Creates and returns a Variant entity from a Shopify variant JSON node.
-        /// </summary>
-        /// <param name="varNode">The JSON node representing the variant.</param>
-        /// <param name="product">The parent product entity.</param>
-        /// <returns>The created Variant entity.</returns>
         private async Task<Variant> SetVariant(JsonElement varNode, Product product)
         {
             _logger.LogDebug("[ShopifyService] SetVariant called for product ID: {ProductId}", product.Id);
@@ -1687,11 +1620,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
             }
         }
 
-        /// <summary>
-        /// Creates and returns an OemVariant entity from a value string.
-        /// </summary>
-        /// <param name="value">The OEM value string.</param>
-        /// <returns>The created OemVariant entity.</returns>
         private async Task<List<OemVariant>> SetOEMVariant(string value)
         {
             try
@@ -1717,11 +1645,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
             }
         }
 
-        /// <summary>
-        /// Creates and returns a list of VariantPrice entities from a value string.
-        /// </summary>
-        /// <param name="value">The value string containing price information.</param>
-        /// <returns>A list of VariantPrice entities.</returns>
         private async Task<List<VariantPrice>> SetVariantPrices(string value)
         {
             try
@@ -1755,12 +1678,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
 
         }
 
-        /// <summary>
-        /// Creates and returns an OptionSetDTO containing options, product options, and option values from a JSON node.
-        /// </summary>
-        /// <param name="node">The JSON node representing the product.</param>
-        /// <param name="edgeProduct">The product entity.</param>
-        /// <returns>An OptionSetDTO with options, product options, and option values.</returns>
         private async Task<OptionSetDTO> SetOptionProductOptionAndOptionValueAsync(JsonElement node, Product edgeProduct)
         {
             try
@@ -1819,12 +1736,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
             }
         }
 
-        /// <summary>
-        /// Creates and returns a TagSetDTO containing tags and product tags from a JSON node.
-        /// </summary>
-        /// <param name="node">The JSON node representing the product.</param>
-        /// <param name="edgeProduct">The product entity.</param>
-        /// <returns>A TagSetDTO with tags and product tags.</returns>
         private async Task<TagSetDTO> SetTagAndProductTagAsync(JsonElement node, Product edgeProduct)
         {
             TagSetDTO tagSetDTO = new TagSetDTO();
@@ -1865,12 +1776,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
             }
         }
 
-        /// <summary>
-        /// Creates and returns a Product entity from a JSON node and Shopify product ID.
-        /// </summary>
-        /// <param name="node">The JSON node representing the product.</param>
-        /// <param name="shopifyProductId">The Shopify product ID.</param>
-        /// <returns>The created Product entity.</returns>
         private async Task<Product> SetProductAsync(JsonElement node, string? shopifyProductId)
         {
             var productId = node.GetProperty("id").GetString().Split('/').Last();
@@ -1899,7 +1804,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                 var vendorName = node.GetProperty("vendor").GetString();
                 var vendor = await _shopifyRepo.GetOrCreateVendorByNameAsync(vendorName);
                 
-                // Handle product type
                 ProductType productType = null;
                 if (node.TryGetProperty("productType", out var productTypeProperty) && 
                     productTypeProperty.ValueKind != JsonValueKind.Null &&
@@ -1932,7 +1836,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
             }
             catch (Exception ex)
             {
-               // Check if the failed product is already recorded in the failed items processing table
                 var queueProduct = await _shopifyRepo.GetProductFromQueueAsync(productId.ToString());
 
                 if (queueProduct == null || queueProduct.RetryCount > 10)
@@ -1952,13 +1855,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
             }
         }
 
-        /// <summary>
-        /// Creates and returns a list of VariantOptionValue entities from option values and a variant JSON node.
-        /// </summary>
-        /// <param name="optionValues">List of option values.</param>
-        /// <param name="varNode">The JSON node representing the variant.</param>
-        /// <param name="variant">The variant entity.</param>
-        /// <returns>A list of VariantOptionValue entities.</returns>
         private async Task<List<VariantOptionValue>> SetVariantOptionValueAsync(List<OptionValue> optionValues, JsonElement varNode, Variant variant)
         {
             try
@@ -1987,12 +1883,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
 
         }
 
-        /// <summary>
-        /// Creates and returns a CollectionSetDTO containing collections and product collections from a JSON node.
-        /// </summary>
-        /// <param name="collectionsNode">The JSON node representing the collections.</param>
-        /// <param name="edgeProduct">The product entity.</param>
-        /// <returns>A CollectionSetDTO with collections and product collections.</returns>
         private async Task<CollectionSetDTO> SetCollectionAndProductCollectionAsync(JsonElement collectionsNode, Product edgeProduct)
         {
             List<ProductCollection> productCollections = new List<ProductCollection>();
@@ -2075,7 +1965,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
             _logger.LogDebug("[ShopifyService] UpdateProductAsync called for product ID: {ProductId}", existingProduct.Id);
             try
             {
-                // Update the main product
                 await _shopifyRepo.UpdateProductAsync(existingProduct);
                 _logger.LogDebug("[ShopifyService] Successfully updated product ID: {ProductId}", existingProduct.Id);
 
@@ -2108,7 +1997,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
 
                     if (product == null)
                     {
-                        // If product doesn't exist, skip this image
                         continue;
                     }
                     else
@@ -2142,23 +2030,18 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
             _logger.LogDebug("[ShopifyService] SetProductAndChildrenToUpdateAsync called for product ID: {ProductId}", existingProduct.Id);
             try
             {
-                // Update product basic information
                 _logger.LogDebug("[ShopifyService] Updating basic product information for ID: {ProductId}", existingProduct.Id);
                 await SetProductToUpdateAsync(node, existingProduct);
 
-                // Full synchronization for options, product options, and option values
                 await SynchronizeOptionsAsync(node, existingProduct);
 
-                // Full synchronization for variants and their related data
                 if (node.TryGetProperty("variants", out var variantsNode))
                 {
                     await SynchronizeVariantsAsync(variantsNode, existingProduct);
                 }
 
-                // Full synchronization for tags and product tags
                 await SynchronizeTagsAsync(node, existingProduct);
 
-                // Full synchronization for collections and product collections
                 if (node.TryGetProperty("collections", out var collectionsNode))
                 {
                     _logger.LogDebug("[ShopifyService] Synchronizing collections for product ID: {ProductId}", existingProduct.Id);
@@ -2176,11 +2059,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
 
         }
 
-        /// <summary>
-        /// Updates the basic information of an existing product from Shopify data.
-        /// </summary>
-        /// <param name="node">The JSON node containing the product data.</param>
-        /// <param name="existingProduct">The existing product entity to update.</param>
         private async Task SetProductToUpdateAsync(JsonElement node, Product existingProduct)
         {
             _logger.LogDebug("[ShopifyService] SetProductToUpdateAsync called for product ID: {ProductId}", existingProduct.Id);
@@ -2211,7 +2089,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                 var vendorName = node.GetProperty("vendor").GetString();
                 var vendor = await _shopifyRepo.GetOrCreateVendorByNameAsync(vendorName);
 
-                // Handle product type for updates
                 ProductType productType = null;
                 if (node.TryGetProperty("productType", out var productTypeProperty) && 
                     productTypeProperty.ValueKind != JsonValueKind.Null &&
@@ -2221,7 +2098,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                     productType = await _shopifyRepo.GetOrCreateProductTypeByNameAsync(productTypeName);
                 }
 
-                // Update product fields
                 var tags = node.GetProperty("tags").EnumerateArray().Select(x => x.GetString()).ToList();
                 existingProduct.Title = node.GetProperty("title").GetString();
                 existingProduct.DescriptionHtml = node.GetProperty("descriptionHtml").GetString();
@@ -2244,18 +2120,10 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
         }
 
 
-
-        /// <summary>
-        /// Updates an existing variant with new data from Shopify.
-        /// </summary>
-        /// <param name="variantNode">The JSON node containing variant data.</param>
-        /// <param name="existingVariant">The existing variant entity to update.</param>
-        /// <param name="optionValues">List of option values for the product.</param>
         private async Task UpdateVariantAsync(JsonElement variantNode, Variant existingVariant)
         {
             try
             {
-                // Update basic variant information only
                 existingVariant.Title = variantNode.GetProperty("title").GetString();
                 existingVariant.SKU = variantNode.GetProperty("sku").GetString();
                 existingVariant.CompareAtPrice = variantNode.TryGetProperty("compareAtPrice", out var cap) ? cap.GetString() : null;
@@ -2296,7 +2164,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                     }
                 }
 
-                // Update the variant in the database
                 await _shopifyRepo.UpdateVariantAsync(existingVariant);
             }
             catch (Exception ex)
@@ -2306,42 +2173,29 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
             }
         }
 
-        /// <summary>
-        /// Synchronizes options, product options, and option values with full CRUD operations.
-        /// </summary>
-        /// <param name="node">The JSON node containing the product data.</param>
-        /// <param name="existingProduct">The existing product entity.</param>
         private async Task SynchronizeOptionsAsync(JsonElement node, Product existingProduct)
         {
             try
             {
-                // Get current options from Shopify response
                 var optionDto = await SetOptionProductOptionAndOptionValueAsync(node, existingProduct);
                 if (optionDto == null) return;
 
-                // Get existing data from database with proper includes
                 var existingProductOptions = await _shopifyRepo.GetProductOptionsByProductIdAsync(existingProduct.Id) ?? new List<ProductOption>();
 
-                // Get all existing options for this product
                 var existingOptionIds = existingProductOptions.Select(po => po.OptionId).ToHashSet();
                 var existingOptions = await _shopifyRepo.GetOptionsByIdsAsync(existingOptionIds);
 
-                // Get all existing option values for this product
                 var existingOptionValues = await _shopifyRepo.GetOptionValuesByProductIdAsync(existingProduct.Id) ?? new List<OptionValue>();
 
-                // Create sets for comparison
                 var shopifyOptionNames = optionDto.Options.Select(o => o.Name).ToHashSet();
                 var existingOptionNames = existingOptions.Select(o => o.Name).ToHashSet();
 
-                // Handle Options: Delete, Update, Add
                 var optionsToDelete = existingOptions.Where(o => !shopifyOptionNames.Contains(o.Name)).ToList();
                 var optionsToUpdate = existingOptions.Where(o => shopifyOptionNames.Contains(o.Name)).ToList();
                 var optionsToAdd = optionDto.Options.Where(o => !existingOptionNames.Contains(o.Name)).ToList();
 
-                // Delete options that no longer exist in Shopify
                 if (optionsToDelete.Any())
                 {
-                    // First delete related product options and option values
                     var productOptionsToDelete = existingProductOptions.Where(po =>
                         optionsToDelete.Any(o => o.Id == po.OptionId)).ToList();
                     await _shopifyRepo.DeleteProductOptionAsync(productOptionsToDelete);
@@ -2351,13 +2205,11 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                     await _shopifyRepo.DeleteOptionValueAsync(optionValuesToDelete);
                 }
 
-                // Update existing options
                 foreach (var optionToUpdate in optionsToUpdate)
                 {
                     var shopifyOption = optionDto.Options.FirstOrDefault(o => o.Name == optionToUpdate.Name);
                     if (shopifyOption != null)
                     {
-                        // Update option properties if they've changed
                         if (optionToUpdate.Name != shopifyOption.Name)
                         {
                             optionToUpdate.Name = shopifyOption.Name;
@@ -2366,13 +2218,11 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                     }
                 }
 
-                // Add new options
                 if (optionsToAdd.Any())
                 {
                     await _shopifyRepo.AddOptionsAsync(optionsToAdd);
                 }
 
-                // Handle OptionValues: Delete, Update, Add
                 var shopifyOptionValuePairs = optionDto.OptionValues.Select(ov => new { ov.Option?.Name, ov.Value }).ToHashSet();
                 var existingOptionValuePairs = existingOptionValues.Select(ov => new { ov.Option?.Name, ov.Value }).ToHashSet();
 
@@ -2389,14 +2239,12 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                     !existingOptionValuePairs.Any(eov => eov.Name == ov.Option.Name && eov.Value == ov.Value)).ToList();
 
 
-                // Update existing option values
                 foreach (var optionValueToUpdate in optionValuesToUpdate)
                 {
                     var shopifyOptionValue = optionDto.OptionValues.FirstOrDefault(ov =>
                         ov.Option?.Name == optionValueToUpdate.Option?.Name && ov.Value == optionValueToUpdate.Value);
                     if (shopifyOptionValue != null)
                     {
-                        // Update option value properties if they've changed
                         if (optionValueToUpdate.Value != shopifyOptionValue.Value)
                         {
                             optionValueToUpdate.Value = shopifyOptionValue.Value;
@@ -2405,13 +2253,11 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                     }
                 }
 
-                // Add new option values
                 if (optionValuesToAdd.Any())
                 {
                     await _shopifyRepo.AddOptionValuesAsync(optionValuesToAdd);
                 }
 
-                // Handle ProductOptions: Delete, Update, Add
                 var shopifyProductOptionPairs = optionDto.ProductOptions.Select(po => po.Option?.Name).ToHashSet();
                 var existingProductOptionPairs = existingProductOptions.Select(po => po.Option?.Name).ToHashSet();
 
@@ -2425,14 +2271,12 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                     po.Option?.Name != null && !existingProductOptionPairs.Contains(po.Option.Name)).ToList();
 
 
-                // Update existing product options
                 foreach (var productOptionToUpdate in productOptionsToUpdate)
                 {
                     var shopifyProductOption = optionDto.ProductOptions.FirstOrDefault(po =>
                         po.Option?.Name == productOptionToUpdate.Option?.Name);
                     if (shopifyProductOption != null)
                     {
-                        // Update product option properties if they've changed
                         if (productOptionToUpdate.Position != shopifyProductOption.Position)
                         {
                             productOptionToUpdate.Position = shopifyProductOption.Position;
@@ -2441,7 +2285,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                     }
                 }
 
-                // Add new product options
                 if (productOptionsToAdd.Any())
                 {
                     await _shopifyRepo.AddProductOptionAsync(productOptionsToAdd);
@@ -2454,11 +2297,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
             }
         }
 
-        /// <summary>
-        /// Synchronizes variants and their related data with full CRUD operations.
-        /// </summary>
-        /// <param name="variantsNode">The JSON node containing variants data.</param>
-        /// <param name="existingProduct">The existing product entity.</param>
         private async Task SynchronizeVariantsAsync(JsonElement variantsNode, Product existingProduct)
         {
             try
@@ -2466,21 +2304,17 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                 var variantEdges = variantsNode.GetProperty("edges").EnumerateArray();
                 var shopifyVariants = new List<JsonElement>();
 
-                // Collect all variants from Shopify response
                 foreach (var variantEdge in variantEdges)
                 {
                     shopifyVariants.Add(variantEdge.GetProperty("node"));
                 }
 
-                // Get existing variants from database
                 // var existingVariants = existingProduct.Variants?.ToList() ?? new List<Variant>();
                 var existingVariants = await _shopifyRepo.GetVariantsByProductIdAsync(existingProduct.Id) ?? new List<Variant>();
 
-                // Create sets for comparison
                 var shopifyVariantIds = shopifyVariants.Select(v => v.GetProperty("id").GetString()).ToHashSet();
                 var existingVariantIds = existingVariants.Select(v => v.ShopifyId).Where(id => id != null).ToHashSet();
 
-                // Delete variants that no longer exist in Shopify
                 var variantsToDelete = existingVariants.Where(v =>
                     v.ShopifyId != null && !shopifyVariantIds.Contains(v.ShopifyId)).ToList();
 
@@ -2490,7 +2324,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                     await _shopifyRepo.DeleteVariantAsync(variantsToDelete);
                 }
 
-                // Process remaining variants (update existing, create new)
                 List<Variant> newVariantsToAdd = new List<Variant>();
                 var newVariantNodes = new Dictionary<string, JsonElement>(); // Track JSON nodes for new variants
                 
@@ -2501,7 +2334,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
 
                     if (existingVariant != null)
                     {
-                        // Update existing variant
                         await SynchronizeVariantAsync(variantNode, existingVariant);
                     }
                     else
@@ -2543,28 +2375,18 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
             }
         }
 
-        /// <summary>
-        /// Synchronizes a single variant with all its related data.
-        /// </summary>
-        /// <param name="variantNode">The JSON node containing variant data.</param>
-        /// <param name="existingVariant">The existing variant entity.</param>
         private async Task SynchronizeVariantAsync(JsonElement variantNode, Variant existingVariant)
         {
             try
             {
-                // Update basic variant information
                 await UpdateVariantAsync(variantNode, existingVariant);
 
-                // Synchronize variant option values
                 await SynchronizeVariantOptionValuesAsync(variantNode, existingVariant);
 
-                // Synchronize inventory levels
                 await SynchronizeInventoryLevelsAsync(variantNode, existingVariant);
 
-                // Synchronize variant prices
                 await SynchronizeVariantPricesAsync(variantNode, existingVariant);
 
-                // Synchronize OEM variants
                 await SynchronizeOemVariantsAsync(variantNode, existingVariant);
             }
             catch (Exception ex)
@@ -2574,21 +2396,14 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
             }
         }
 
-        /// <summary>
-        /// Adds related data for a new variant.
-        /// </summary>
-        /// <param name="variantNode">The JSON node containing variant data.</param>
-        /// <param name="variant">The variant entity.</param>
         private async Task AddVariantRelatedDataAsync(JsonElement variantNode, Variant variant)
         {
             try
             {
-                // Add variant option values
                 var optionValues = await GetOptionValuesForProduct(variant.ProductId);
                 var variantOptionValues = await SetVariantOptionValueAsync(optionValues, variantNode, variant);
                 await _shopifyRepo.AddVariantOptionValueAsync(variantOptionValues);
 
-                // Add inventory levels
                 if (variantNode.TryGetProperty("inventoryItem", out var inventoryItemNode) &&
                     inventoryItemNode.TryGetProperty("inventoryLevels", out var inventoryLevelsNode))
                 {
@@ -2599,7 +2414,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                     }
                 }
 
-                // Add variant prices and OEM variants
                 //if (variantNode.TryGetProperty("metafields", out var metafieldsNode))
                 //{
                 //    await ProcessVariantMetafieldsAsync(metafieldsNode, variant);
@@ -2612,11 +2426,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
             }
         }
 
-        /// <summary>
-        /// Gets option values for a product.
-        /// </summary>
-        /// <param name="productId">The product ID.</param>
-        /// <returns>List of option values.</returns>
         private async Task<List<OptionValue>> GetOptionValuesForProduct(int productId)
         {
             try
@@ -2630,11 +2439,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
             }
         }
 
-        /// <summary>
-        /// Synchronizes variant option values.
-        /// </summary>
-        /// <param name="variantNode">The JSON node containing variant data.</param>
-        /// <param name="existingVariant">The existing variant entity.</param>
         private async Task SynchronizeVariantOptionValuesAsync(JsonElement variantNode, Variant existingVariant)
         {
             try
@@ -2642,7 +2446,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                 var optionValues = await GetOptionValuesForProduct(existingVariant.ProductId);
                 var newVariantOptionValues = await SetVariantOptionValueAsync(optionValues, variantNode, existingVariant);
 
-                // Get existing variant option values from database
                 var existingVariantOptionValues = await _shopifyRepo.GetVariantOptionValuesByVariantIdAsync(existingVariant.Id);
 
                 // Create sets for comparison using both option name and value for proper matching
@@ -2658,7 +2461,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                     OptionValue = vov.OptionValue?.Value
                 }).Where(p => p.OptionName != null && p.OptionValue != null).ToHashSet();
 
-                // Delete variant option values that no longer exist
                 var variantOptionValuesToDelete = existingVariantOptionValues.Where(vov =>
                     vov.OptionValue?.Option?.Name != null && vov.OptionValue?.Value != null &&
                     !newVariantOptionValuePairs.Any(nvov =>
@@ -2689,11 +2491,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
             }
         }
 
-        /// <summary>
-        /// Synchronizes inventory levels for a variant.
-        /// </summary>
-        /// <param name="variantNode">The JSON node containing variant data.</param>
-        /// <param name="existingVariant">The existing variant entity.</param>
         private async Task SynchronizeInventoryLevelsAsync(JsonElement variantNode, Variant existingVariant)
         {
             try
@@ -2707,7 +2504,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                 var newInventoryLevels = await AddLocationAndSetInventoryLevelAsync(variantNode, existingVariant, inventoryLevelsNode);
                 var existingInventoryLevels = await _shopifyRepo.GetInventoryLevelsByVariantIdAsync(existingVariant.Id);
 
-                // Delete inventory levels that no longer exist
                 var newLocationIds = newInventoryLevels.Select(il => il.Location?.Id).Where(id => id != null).ToHashSet();
                 var inventoryLevelsToDelete = existingInventoryLevels
                     .Where(il => il.Location?.Id != null && !newLocationIds.Contains(il.Location.Id))
@@ -2715,7 +2511,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                 if (inventoryLevelsToDelete.Any())
                     await _shopifyRepo.DeleteInventoryLevelAsync(inventoryLevelsToDelete);
 
-                // Add only new inventory levels
                 var existingLocationIds = existingInventoryLevels.Select(il => il.Location?.Id).Where(id => id != null).ToHashSet();
                 var inventoryLevelsToAdd = newInventoryLevels
                     .Where(il => il.Location?.Id != null && !existingLocationIds.Contains(il.Location.Id))
@@ -2723,7 +2518,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                 if (inventoryLevelsToAdd.Any())
                     await _shopifyRepo.AddInventoryLevelsAsync(inventoryLevelsToAdd);
 
-                // Update tracked entities only
                 foreach (var newLevel in newInventoryLevels)
                 {
                     var tracked = existingInventoryLevels.FirstOrDefault(e =>
@@ -2747,11 +2541,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
             }
         }
 
-        /// <summary>
-        /// Synchronizes variant prices.
-        /// </summary>
-        /// <param name="variantNode">The JSON node containing variant data.</param>
-        /// <param name="existingVariant">The existing variant entity.</param>
         private async Task SynchronizeVariantPricesAsync(JsonElement variantNode, Variant existingVariant)
         {
             try
@@ -2787,11 +2576,9 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
 
                 var existingVariantPrices = await _shopifyRepo.GetVariantPricesByVariantIdAsync(existingVariant.Id);
 
-                // Create sets for comparison
                 var newLocationIds = newVariantPrices.Select(vp => vp.Location?.Id).ToHashSet();
                 var existingLocationIds = existingVariantPrices.Select(vp => vp.LocationId).ToHashSet();
 
-                // Delete variant prices that no longer exist
                 var variantPricesToDelete = existingVariantPrices.Where(vp =>
                     !newLocationIds.Contains(vp.LocationId)).ToList();
 
@@ -2800,7 +2587,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                     await _shopifyRepo.DeleteVariantPriceAsync(variantPricesToDelete);
                 }
 
-                //Add and Update 
 
                 if (newVariantPrices != null && newVariantPrices.Any())
                 {
@@ -2814,11 +2600,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
             }
         }
 
-        /// <summary>
-        /// Synchronizes OEM variants.
-        /// </summary>
-        /// <param name="variantNode">The JSON node containing variant data.</param>
-        /// <param name="existingVariant">The existing variant entity.</param>
         private async Task SynchronizeOemVariantsAsync(JsonElement variantNode, Variant existingVariant)
         {
             try
@@ -2855,11 +2636,9 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
 
                 var existingOemVariants = await _shopifyRepo.GetOemVariantsByVariantIdAsync(existingVariant.Id);
 
-                // Create sets for comparison
                 var newOemIds = newOemVariants.Select(ov => ov.OEMId).ToHashSet();
                 var existingOemIds = existingOemVariants.Select(ov => ov.OEMId).ToHashSet();
 
-                // Delete OEM variants that no longer exist
                 var oemVariantsToDelete = existingOemVariants.Where(ov =>
                     !newOemIds.Contains(ov.OEMId)).ToList();
 
@@ -2884,11 +2663,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
             }
         }
 
-        /// <summary>
-        /// Synchronizes tags and product tags with full CRUD operations.
-        /// </summary>
-        /// <param name="node">The JSON node containing the product data.</param>
-        /// <param name="existingProduct">The existing product entity.</param>
         private async Task SynchronizeTagsAsync(JsonElement node, Product existingProduct)
         {
             try
@@ -2896,38 +2670,30 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                 var tagSetDto = await SetTagAndProductTagAsync(node, existingProduct);
                 if (tagSetDto == null) return;
 
-                // Get existing data from database with proper includes
                 var existingProductTags = await _shopifyRepo.GetProductTagsByProductIdAsync(existingProduct.Id) ?? new List<ProductTag>();
 
-                // Get all existing tags for this product
                 var existingTagIds = existingProductTags.Select(pt => pt.TagId).ToHashSet();
                 var existingTags = await _shopifyRepo.GetTagsByIdsAsync(existingTagIds);
 
-                // Create sets for comparison
                 var shopifyTagTitles = tagSetDto.Tags.Select(t => t.Title).ToHashSet();
                 var existingTagTitles = existingTags.Select(t => t.Title).ToHashSet();
 
-                // Handle Tags: Delete, Update, Add
                 var tagsToDelete = existingTags.Where(t => !shopifyTagTitles.Contains(t.Title)).ToList();
                 var tagsToUpdate = existingTags.Where(t => shopifyTagTitles.Contains(t.Title)).ToList();
                 var tagsToAdd = tagSetDto.Tags.Where(t => !existingTagTitles.Contains(t.Title)).ToList();
 
-                // Delete tags that no longer exist in Shopify
                 if (tagsToDelete.Any())
                 {
-                    // First delete related product tags
                     var productTagsToDelete = existingProductTags.Where(pt =>
                         tagsToDelete.Any(t => t.Id == pt.TagId)).ToList();
                     await _shopifyRepo.DeleteProductTagAsync(productTagsToDelete);
                 }
 
-                // Update existing tags
                 foreach (var tagToUpdate in tagsToUpdate)
                 {
                     var shopifyTag = tagSetDto.Tags.FirstOrDefault(t => t.Title == tagToUpdate.Title);
                     if (shopifyTag != null)
                     {
-                        // Update tag properties if they've changed
                         if (tagToUpdate.Title != shopifyTag.Title ||
                             tagToUpdate.Title_en != shopifyTag.Title_en)
                         {
@@ -2940,13 +2706,11 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                     }
                 }
 
-                // Add new tags
                 if (tagsToAdd.Any())
                 {
                     await _shopifyRepo.AddTagsAsync(tagsToAdd);
                 }
 
-                // Handle ProductTags: Delete, Update, Add
                 var shopifyProductTagPairs = tagSetDto.ProductTags.Select(pt => pt.Tag?.Title).ToHashSet();
                 var existingProductTagPairs = existingProductTags.Select(pt => pt.Tag?.Title).ToHashSet();
 
@@ -2961,7 +2725,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
 
               
 
-                // Add new product tags
                 if (productTagsToAdd.Any())
                 {
                     await _shopifyRepo.AddProductTagsAsync(productTagsToAdd);
@@ -2974,23 +2737,15 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
             }
         }
 
-        /// <summary>
-        /// Synchronizes collections and product collections with full CRUD operations.
-        /// </summary>
-        /// <param name="collectionsNode">The JSON node containing collections data.</param>
-        /// <param name="existingProduct">The existing product entity.</param>
         private async Task SynchronizeCollectionsAsync(JsonElement collectionsNode, Product existingProduct)
         {
             try
             {
-                // Get existing data from database with proper includes
                 var existingProductCollections = await _shopifyRepo.GetProductCollectionsByProductIdAsync(existingProduct.Id) ?? new List<ProductCollection>();
 
-                // Get all existing collections for this product
                 var existingCollectionIds = existingProductCollections.Select(pc => pc.CollectionId).ToHashSet();
                 var existingCollections = await _shopifyRepo.GetCollectionsByIdsAsync(existingCollectionIds);
 
-                // Extract Shopify collection IDs from the JSON node
                 var shopifyCollectionIds = new HashSet<string>();
                 if (collectionsNode.TryGetProperty("edges", out var edgesNode))
                 {
@@ -3008,28 +2763,22 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                     }
                 }
 
-                // Create sets for comparison
                 var existingCollectionShopifyIds = existingCollections.Select(c => c.ShopifyId).Where(id => id != null).ToHashSet();
 
-                // Handle Collections: Delete, Update, Add
                 var collectionsToDelete = existingCollections.Where(c =>
                     c.ShopifyId != null && !shopifyCollectionIds.Contains(c.ShopifyId)).ToList();
                 var collectionsToUpdate = existingCollections.Where(c =>
                     c.ShopifyId != null && shopifyCollectionIds.Contains(c.ShopifyId)).ToList();
 
-                // Delete collections that no longer exist in Shopify
                 if (collectionsToDelete.Any())
                 {
-                    // First delete related product collections
                     var productCollectionsToDelete = existingProductCollections.Where(pc =>
                         collectionsToDelete.Any(c => c.Id == pc.CollectionId)).ToList();
                     await _shopifyRepo.DeleteProductCollectionAsync(productCollectionsToDelete);
                 }
 
-                // Update existing collections
                 foreach (var collectionToUpdate in collectionsToUpdate)
                 {
-                    // Get collection details from Shopify for comparison
                     if (collectionsNode.TryGetProperty("edges", out var edgesForUpdate))
                     {
                         foreach (var edge in edgesForUpdate.EnumerateArray())
@@ -3045,7 +2794,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                                                img.TryGetProperty("src", out var src)
                                                ? src.GetString() : null;
 
-                                // Update collection properties if they've changed
                                 if (collectionToUpdate.Title != shopifyTitle ||
                                     collectionToUpdate.Description != shopifyDescription ||
                                     collectionToUpdate.Image != shopifyImage)
@@ -3063,22 +2811,18 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
 
                 
 
-                // Add new product collections for collections that exist in Shopify but not in our database
                 var productCollectionsToAdd = new List<ProductCollection>();
                 foreach (var shopifyCollectionId in shopifyCollectionIds)
                 {
-                    // Check if this collection exists in our database
                     var existingCollection = existingCollections.FirstOrDefault(c => c.ShopifyId == shopifyCollectionId);
 
                     if (existingCollection != null)
                     {
-                        // Collection exists, check if ProductCollection relationship exists
                         var existingProductCollection = existingProductCollections.FirstOrDefault(pc =>
                             pc.CollectionId == existingCollection.Id);
 
                         if (existingProductCollection == null)
                         {
-                            // ProductCollection relationship doesn't exist, add it
                             productCollectionsToAdd.Add(new ProductCollection
                             {
                                 ProductId = existingProduct.Id,
@@ -3088,12 +2832,9 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                     }
                     else
                     {
-                        // Collection doesn't exist, we need to create it first
-                        // Get collection details from Shopify
                         var collection = await _shopifyRepo.GetCollectionByShopifyId(shopifyCollectionId);
                         if (collection == null)
                         {
-                            // Create new collection from Shopify data
                             if (collectionsNode.TryGetProperty("edges", out var edgesForCollection))
                             {
                                 foreach (var edge in edgesForCollection.EnumerateArray())
@@ -3121,7 +2862,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
 
                         if (collection != null)
                         {
-                            // Add ProductCollection relationship
                             productCollectionsToAdd.Add(new ProductCollection
                             {
                                 ProductId = existingProduct.Id,
@@ -3131,7 +2871,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                     }
                 }
 
-                // Add new product collections
                 if (productCollectionsToAdd.Any())
                 {
                     await _shopifyRepo.AddProductCollectionsAsync(productCollectionsToAdd);
@@ -3225,7 +2964,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
 
                                 if (product == null)
                                 {
-                                    // If product doesn't exist, skip this image
                                     continue;
                                 }
                                 else
@@ -3354,14 +3092,12 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                 using var doc = JsonDocument.Parse(json);
                 var root = doc.RootElement;
 
-                // Check for GraphQL errors
                 if (root.TryGetProperty("errors", out var errors))
                 {
                     _logger.LogError("[ShopifyService] GraphQL errors: {Errors}", errors.ToString());
                     return null;
                 }
 
-                // Check if order exists
                 if (!root.TryGetProperty("data", out var data) || 
                     !data.TryGetProperty("order", out var order) || 
                     order.ValueKind == JsonValueKind.Null)

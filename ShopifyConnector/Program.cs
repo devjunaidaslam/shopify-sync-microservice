@@ -1,6 +1,7 @@
 using Amazon.Runtime;
 using AWS.Logger;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.OpenApi.Models;
 using PartFinder_DataAccess.Context;
 using PartFinderMicroServices_BusinessLogicLayer.Repository.Implementation;
 using PartFinderMicroServices_BusinessLogicLayer.Repository.Interface;
@@ -13,31 +14,33 @@ using ShopifyConnector.Middleware;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-
 builder.Services.AddControllers();
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(option =>
+{
+    option.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "Shopify Connector API",
+        Version = "v1"
+    });
+});
 
 builder.Services.Configure<ShopifySetting>(
-                 builder.Configuration.GetSection("Shopify"));
+    builder.Configuration.GetSection("Shopify"));
 
-builder.Services.Configure<RabbitMQSetting>(builder.Configuration.GetSection("RabbitMQ"));
+builder.Services.Configure<RabbitMQSetting>(
+    builder.Configuration.GetSection("RabbitMQ"));
 
 builder.Services.AddHostedService<WebHookRMQJob>();
 builder.Services.AddHostedService<ShopifyUpdateRMQJob>();
-// Separate services for inbound and outbound queue processing
 builder.Services.AddScoped<IWebHookRMQService, WebHookRMQService>();
 builder.Services.AddScoped<IShopifyUpdateRMQService, ShopifyUpdateRMQService>();
 
-// Register Order services BEFORE WebHookService (dependency requirement)
+// Order stack must register before WebHookService (constructor dependency).
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 builder.Services.AddScoped<ISupplierRepository, SupplierRepository>();
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
 builder.Services.AddScoped<IOrderService, OrderService>();
-
-// Register Prediko Order RMQ publisher service
 builder.Services.AddScoped<IPredikoOrderRMQService, PredikoOrderRMQService>();
 
 builder.Services.AddScoped<IWebHookService, WebHookService>();
@@ -46,17 +49,20 @@ builder.Services.AddScoped<IShopifyService, ShopifyService>();
 builder.Services.AddScoped<IFitmentService, FitmentService>();
 builder.Services.AddScoped<IVehicleRepository, VehicleRepository>();
 builder.Services.AddTransient<IShopifyRepository, ShopifyRepository>();
-builder.Services.AddDbContextFactory<PartFinderDbContext>(opt =>
-   opt.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
-builder.Services.AddDbContext<PartFinderDbContext>(opt =>
-    opt.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"), builder =>
-    {
-        builder.EnableRetryOnFailure(5, TimeSpan.FromSeconds(10), null);
-    }));
-builder.Services.AddSingleton<PageCursorTracker>();
 builder.Services.AddTransient<ICommonService, CommonService>();
 builder.Services.AddScoped<ITransactionHistoryService, TransactionHistoryService>();
 builder.Services.AddScoped<ITransactionHistoryRepository, TransactionHistoryRepository>();
+
+builder.Services.AddDbContextFactory<PartFinderDbContext>(opt =>
+    opt.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+builder.Services.AddDbContext<PartFinderDbContext>(opt =>
+    opt.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"), npgsql =>
+    {
+        npgsql.EnableRetryOnFailure(5, TimeSpan.FromSeconds(10), null);
+    }));
+
+builder.Services.AddSingleton<PageCursorTracker>();
 
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
@@ -77,23 +83,18 @@ if (!string.IsNullOrWhiteSpace(awsAccessKey) &&
 }
 
 var app = builder.Build();
-app.UsePathBase("/shopifyconnector"); // 👈 this makes sure all paths are aware of the base path
+
+app.UsePathBase("/shopifyconnector");
 app.UseMiddleware<ExceptionHandlingMiddleware>();
-// Configure the HTTP request pipeline.
-//if (app.Environment.IsDevelopment())
-//{
+
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
-    c.SwaggerEndpoint("/shopifyconnector/swagger/v1/swagger.json", "Shopify API V1");
+    c.SwaggerEndpoint("/shopifyconnector/swagger/v1/swagger.json", "Shopify Connector V1");
     c.RoutePrefix = "swagger";
 });
-//}
 
 app.UseHttpsRedirection();
-
 app.UseAuthorization();
-
 app.MapControllers();
-
 app.Run();

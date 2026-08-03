@@ -1,11 +1,8 @@
-using DocumentFormat.OpenXml.Spreadsheet;
 using Microsoft.Extensions.Configuration;
 using PartFinderMicroServices_BusinessLogicLayer.Repository.Interface;
 using PartFinderMicroServices_BusinessLogicLayer.Service.Interface;
 using PartFinderMicroServices_DataAccessLayer.Entities;
 using PartFinderMicroServices_DataAccessLayer.Model;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 
 namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
 {
@@ -64,4 +61,4 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
             }
         }
     }
-} 
+}

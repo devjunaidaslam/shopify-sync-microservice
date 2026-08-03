@@ -1,9 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
-using PartFinder_DataAccess.Context;
-using PartFinderMicroServices_BusinessLogicLayer.Service.Implementation;
 using PartFinderMicroServices_BusinessLogicLayer.Service.Interface;
 using PartFinderMicroServices_DataAccessLayer.Enum;
-using System;
 
 namespace ShopifyConnector.BackgroundJob
 {
@@ -26,10 +23,8 @@ namespace ShopifyConnector.BackgroundJob
 
                 _logger.LogInformation("[ShopifyUpdateRMQJob] Background Worker Started for Outbound Updates");
 
-                // Get the service for outbound update processing
                 var shopifyUpdateRMQService = scope.ServiceProvider.GetRequiredService<IShopifyUpdateRMQService>();
 
-                // OUTBOUND QUEUES - Process updates TO Shopify
                 List<string> outboundQueues = new List<string>()
                 {
                     QueueName.VariantPriceUpdate.ToString(),
@@ -38,7 +33,6 @@ namespace ShopifyConnector.BackgroundJob
                     QueueName.FitmentSync.ToString()
                 };
 
-                // Process outbound updates with ShopifyUpdateRMQService
                 _logger.LogInformation("[ShopifyUpdateRMQJob] Starting ShopifyUpdateRMQService for outbound queues: {Queues}", string.Join(", ", outboundQueues));
                 await shopifyUpdateRMQService.ReceviedData(outboundQueues);
                 

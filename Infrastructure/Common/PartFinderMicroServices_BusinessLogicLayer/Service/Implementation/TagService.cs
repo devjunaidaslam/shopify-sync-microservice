@@ -1,12 +1,8 @@
-using DocumentFormat.OpenXml.Spreadsheet;
-using DocumentFormat.OpenXml.Wordprocessing;
 using Microsoft.Extensions.Configuration;
 using PartFinderMicroServices_BusinessLogicLayer.Repository.Interface;
 using PartFinderMicroServices_BusinessLogicLayer.Service.Interface;
 using PartFinderMicroServices_DataAccessLayer.Entities;
 using PartFinderMicroServices_DataAccessLayer.Model;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 
 namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
 {
@@ -18,11 +14,12 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
         private readonly IConfiguration _configuration;
         ResponseMessageList _ApiResponseMessageList = new ResponseMessageList();
 
-        public TagService(ITagRepository tagRepository, ICommonService commonService,IConfiguration configuration)
+        public TagService(ITagRepository tagRepository, ICommonService commonService, IConfiguration configuration)
         {
             _commonService = commonService;
             _tagRepository = tagRepository;
             _configuration = configuration;
+            DefaultPageSize = _configuration.GetValue<int>("Pagination:DefaultPageSize");
         }
 
         public async Task<Response> GetTagsAsync(string search, int pageNo, string pageSize)
@@ -64,4 +61,4 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
             }
         }
     }
-} 
+}

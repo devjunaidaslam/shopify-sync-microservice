@@ -1,4 +1,3 @@
-using DocumentFormat.OpenXml.Spreadsheet;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using PartFinder_DataAccess.Context;
@@ -7,11 +6,6 @@ using PartFinderMicroServices_BusinessLogicLayer.Repository.Interface;
 using PartFinderMicroServices_DataAccessLayer.Entities;
 using PartFinderMicroServices_DataAccessLayer.Entities.DTOs.VehicleDTO;
 using PartFinderMicroServices_DataAccessLayer.Model;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using X.PagedList.EF;
 using static PartFinderMicroServices_DataAccessLayer.Entities.Vehicle.VehicleModel;
 
@@ -49,7 +43,7 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Repository.Implementation
                         join vma in _context.VehicleMakes on v.MakeId equals vma.VehicleMakeId
                         join vo in _context.OemVehicles on v.VehicleId equals vo.VehicleId
                         where (
-                        (vehicleFilterModel.TypeId > 0 ? v.TypeId ==  vehicleFilterModel.TypeId : true) &&
+                        (vehicleFilterModel.TypeId > 0 ? v.TypeId == vehicleFilterModel.TypeId : true) &&
                         (vehicleFilterModel.ModelId > 0 ? v.ModelId == vehicleFilterModel.ModelId : true) &&
                         (vehicleFilterModel.MakeId > 0 ? v.MakeId == vehicleFilterModel.MakeId : true) &&
                         (vehicleFilterModel.YearId > 0 ? v.YearId == vehicleFilterModel.YearId : true)
@@ -107,7 +101,7 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Repository.Implementation
                     int.TryParse(vehicleFilterModel.per_page, out perPage);
                 }
                 vehicleFilterModel.page_no = vehicleFilterModel.page_no > 0 ? vehicleFilterModel.page_no : 1;
-               
+
                 items = await query
                 .OrderBy(x => x.v.VehicleId)
                 .Select(x => new VehicleDTO
@@ -209,7 +203,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Repository.Implementation
 
         public async Task<IEnumerable<VehicleTypes>> GetVehicleTypesByTypeId(long typeId)
         {
-            // Get all unique vehicle types from vehicles
             var types = await _context.Vehicles
                 .AsQueryable()
                 .Join(_context.VehicleTypes,
@@ -219,13 +212,12 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Repository.Implementation
                 .Distinct()
                 .OrderBy(t => t.Name ?? string.Empty)
                 .ToListAsync();
-                
+
             return types ?? new List<VehicleTypes>();
         }
 
         public async Task<IEnumerable<VehicleYears>> GetYearsByTypeId(long typeId)
         {
-            // Get all vehicles with the specified type and return their unique years
             var years = await _context.Vehicles
                 .Where(v => v.TypeId == typeId)
                 .Join(_context.VehicleYears,
@@ -235,13 +227,12 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Repository.Implementation
                 .Distinct()
                 .OrderBy(y => y.Name ?? string.Empty)
                 .ToListAsync();
-                
+
             return years ?? new List<VehicleYears>();
         }
 
         public async Task<IEnumerable<VehicleMakes>> GetMakesByTypeIdAndYearId(long typeId, long yearId)
         {
-            // Get all vehicles with the specified type and year, and return their unique makes
             var makes = await _context.Vehicles
                 .Where(v => v.TypeId == typeId && v.YearId == yearId)
                 .Join(_context.VehicleMakes,
@@ -251,13 +242,12 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Repository.Implementation
                 .Distinct()
                 .OrderBy(m => m.Name ?? string.Empty)
                 .ToListAsync();
-                
+
             return makes ?? new List<VehicleMakes>();
         }
 
         public async Task<IEnumerable<VehicleModels>> GetModelsByTypeIdYearIdAndMakeId(long typeId, long yearId, long makeId)
         {
-            // Get all vehicles with the specified type, year, and make, and return their unique models
             var models = await _context.Vehicles
                 .Where(v => v.TypeId == typeId && v.YearId == yearId && v.MakeId == makeId)
                 .Join(_context.VehicleModels,
@@ -267,17 +257,17 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Repository.Implementation
                 .Distinct()
                 .OrderBy(m => m.Name ?? string.Empty)
                 .ToListAsync();
-                
+
             return models ?? new List<VehicleModels>();
         }
 
         public async Task<Vehicles> GetVehicle(long typeId, long makeId, long yearId, long modelId)
         {
             return await _context.Vehicles
-                .FirstOrDefaultAsync(v => 
-                    v.TypeId == typeId && 
-                    v.MakeId == makeId && 
-                    v.YearId == yearId && 
+                .FirstOrDefaultAsync(v =>
+                    v.TypeId == typeId &&
+                    v.MakeId == makeId &&
+                    v.YearId == yearId &&
                     v.ModelId == modelId);
         }
 
@@ -312,8 +302,7 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Repository.Implementation
         public async Task<int> UpdateResourceActiveStatus(long resourceId, string resourceType, bool isActive)
         {
             int affectedVehicles = 0;
-            
-            // Update the resource table based on type
+
             switch (resourceType.ToLower())
             {
                 case "type":
@@ -321,85 +310,81 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Repository.Implementation
                     if (vehicleType != null)
                     {
                         vehicleType.IsActive = isActive;
-                        
-                        // Update all vehicles that use this type
+
                         var vehiclesWithType = await _context.Vehicles
                             .Where(v => v.TypeId == resourceId)
                             .ToListAsync();
-                        
+
                         foreach (var vehicle in vehiclesWithType)
                         {
                             vehicle.IsActive = isActive;
                         }
-                        
+
                         affectedVehicles = vehiclesWithType.Count;
                     }
                     break;
-                    
+
                 case "year":
                     var vehicleYear = await _context.VehicleYears.FindAsync(resourceId);
                     if (vehicleYear != null)
                     {
                         vehicleYear.IsActive = isActive;
-                        
-                        // Update all vehicles that use this year
+
                         var vehiclesWithYear = await _context.Vehicles
                             .Where(v => v.YearId == resourceId)
                             .ToListAsync();
-                        
+
                         foreach (var vehicle in vehiclesWithYear)
                         {
                             vehicle.IsActive = isActive;
                         }
-                        
+
                         affectedVehicles = vehiclesWithYear.Count;
                     }
                     break;
-                    
+
                 case "make":
                     var vehicleMake = await _context.VehicleMakes.FindAsync(resourceId);
                     if (vehicleMake != null)
                     {
                         vehicleMake.IsActive = isActive;
-                        
-                        // Update all vehicles that use this make
+
                         var vehiclesWithMake = await _context.Vehicles
                             .Where(v => v.MakeId == resourceId)
                             .ToListAsync();
-                        
+
                         foreach (var vehicle in vehiclesWithMake)
                         {
                             vehicle.IsActive = isActive;
                         }
-                        
+
                         affectedVehicles = vehiclesWithMake.Count;
                     }
                     break;
-                    
+
                 case "model":
                     var vehicleModel = await _context.VehicleModels.FindAsync(resourceId);
                     if (vehicleModel != null)
                     {
                         vehicleModel.IsActive = isActive;
-                        
-                        // Update all vehicles that use this model
+
                         var vehiclesWithModel = await _context.Vehicles
                             .Where(v => v.ModelId == resourceId)
                             .ToListAsync();
-                        
+
                         foreach (var vehicle in vehiclesWithModel)
                         {
                             vehicle.IsActive = isActive;
                         }
-                        
+
                         affectedVehicles = vehiclesWithModel.Count;
                     }
                     break;
-                    
+
                 default:
                     throw new ArgumentException($"Invalid resource type: {resourceType}");
             }
-            
+
             await _context.SaveChangesAsync();
             return affectedVehicles;
         }

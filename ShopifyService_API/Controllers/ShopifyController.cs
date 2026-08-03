@@ -1,10 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.DependencyInjection;
 using PartFinderMicroServices_BusinessLogicLayer.Infrastructure.Job.Background;
-using PartFinderMicroServices_BusinessLogicLayer.Service.Implementation;
 using PartFinderMicroServices_BusinessLogicLayer.Service.Interface;
 using PartFinderMicroServices_DataAccessLayer.Entities;
-using System;
 
 namespace ShopifyService_API.Controllers
 {
@@ -17,12 +14,6 @@ namespace ShopifyService_API.Controllers
         private readonly ICommonService _commonService;
         ResponseMessageList _ApiResponseMessageList = new ResponseMessageList();
 
-        /// <summary>
-        /// Initializes a new instance of the <see cref="ShopifyController"/> class.
-        /// </summary>
-        /// <param name="importProductsBackgroundService">Background service for importing products from Shopify.</param>
-        /// <param name="shopifyService">Service for Shopify operations.</param>
-        /// <param name="commonService">Service for logging and common operations.</param>
         public ShopifyController(ImportProductsBackgroundService importProductsBackgroundService, IShopifyService shopifyService, ICommonService commonService)
         {
             _importProductsBackgroundService = importProductsBackgroundService;
@@ -30,42 +21,31 @@ namespace ShopifyService_API.Controllers
             _commonService = commonService;
         }
 
-        /// <summary>
-        /// Triggers the background job to import products from Shopify, optionally for a specific date.
-        /// </summary>
-        /// <param name="date">Optional date to filter products to import.</param>
-        /// <returns>Status of the import trigger or an error response.</returns>
         [HttpPost("TriggerImportProducts")]
-        public async Task<IActionResult> TriggerImportProducts(DateTime? date = null)
+        public Task<IActionResult> TriggerImportProducts(DateTime? date = null)
         {
             try
             {
                 if (_importProductsBackgroundService.IsRunning)
                 {
-                    return Conflict("ImportProducts job is already running.");
+                    return Task.FromResult<IActionResult>(Conflict("ImportProducts job is already running."));
                 }
                 _importProductsBackgroundService.TriggerImport(date);
-                return Ok("ImportProducts background job triggered.");
+                return Task.FromResult<IActionResult>(Ok("ImportProducts background job triggered."));
             }
             catch (Exception ex)
             {
                 _commonService.ErrorLogs(ex.StackTrace ?? "No stack trace available", "TriggerImportProducts", 1, ex.Message, ex.ToString());
-                return BadRequest(ResponseHelper.BadRequest(_ApiResponseMessageList.FailResponseMessage));
+                return Task.FromResult<IActionResult>(BadRequest(ResponseHelper.BadRequest(_ApiResponseMessageList.FailResponseMessage)));
             }
         }
 
-        /// <summary>
-        /// Imports a product from Shopify by its unique identifier.
-        /// </summary>
-        /// <param name="productId">The unique identifier of the product in Shopify.</param>
-        /// <returns>Status of the import or an error response.</returns>
         [HttpPost("ImportProductById/{productId}")]
         public async Task<IActionResult> ImportProductByIdAsync(long productId)
         {
-            try 
+            try
             {
-               
-                if ( productId <= 0)
+                if (productId <= 0)
                 {
                     return BadRequest("Request body is Invalid.");
                 }

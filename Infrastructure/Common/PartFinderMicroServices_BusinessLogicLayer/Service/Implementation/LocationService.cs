@@ -1,19 +1,11 @@
-using DocumentFormat.OpenXml.Wordprocessing;
 using Microsoft.Extensions.Configuration;
-using PartFinderMicroServices_BusinessLogicLayer.Repository.Implementation;
 using PartFinderMicroServices_BusinessLogicLayer.Repository.Interface;
 using PartFinderMicroServices_BusinessLogicLayer.Service.Interface;
 using PartFinderMicroServices_DataAccessLayer.Entities;
 using PartFinderMicroServices_DataAccessLayer.Model;
-using System.Collections.Generic;
-using System.Drawing.Printing;
-using System.Threading.Tasks;
 
 namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
 {
-    /// <summary>
-    /// Service for handling location-related business logic.
-    /// </summary>
     public class LocationService : ILocationService
     {
         private readonly ILocationRepository _locationRepository;
@@ -22,13 +14,7 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
         private readonly IConfiguration _configuration;
         ResponseMessageList _ApiResponseMessageList = new ResponseMessageList();
 
-        /// <summary>
-        /// Initializes a new instance of the <see cref="LocationService"/> class.
-        /// </summary>
-        /// <param name="locationRepository">Repository for location data access.</param>
-        /// <param name="commonService">Service for logging and common operations.</param>
-        /// <param name="configuration">Configuration for pagination and other settings.</param>
-        public LocationService(ILocationRepository locationRepository, ICommonService commonService,IConfiguration configuration)
+        public LocationService(ILocationRepository locationRepository, ICommonService commonService, IConfiguration configuration)
         {
             _commonService = commonService;
             _locationRepository = locationRepository;
@@ -36,13 +22,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
             DefaultPageSize = _configuration.GetValue<int>("Pagination:DefaultPageSize");
         }
 
-        /// <summary>
-        /// Retrieves a paginated list of locations based on search and pagination parameters.
-        /// </summary>
-        /// <param name="search">Search term for filtering locations.</param>
-        /// <param name="pageNo">Page number for pagination.</param>
-        /// <param name="pageSize">Number of items per page or "all" for all items.</param>
-        /// <returns>A Response object containing the paginated list of locations and pagination info.</returns>
         public async Task<Response> GetLocationsAsync(string search, int pageNo, string pageSize)
         {
             try
@@ -82,4 +61,4 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
             }
         }
     }
-} 
+}

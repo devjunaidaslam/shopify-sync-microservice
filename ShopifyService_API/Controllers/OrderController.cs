@@ -15,22 +15,12 @@ namespace ShopifyService_API.Controllers
         private readonly ICommonService _commonService;
         private readonly ResponseMessageList _apiResponseMessageList = new ResponseMessageList();
 
-        /// <summary>
-        /// Initializes a new instance of the <see cref="OrderController"/> class.
-        /// </summary>
-        /// <param name="orderService">Service for order operations.</param>
-        /// <param name="commonService">Service for logging and common operations.</param>
         public OrderController(IOrderService orderService, ICommonService commonService)
         {
             _orderService = orderService;
             _commonService = commonService;
         }
 
-        /// <summary>
-        /// Retrieves all orders with optional filtering and pagination.
-        /// </summary>
-        /// <param name="filter">Filter and pagination options for orders.</param>
-        /// <returns>A paginated list of orders or an error response.</returns>
         [HttpGet]
         public async Task<ActionResult<Response>> GetAllOrders([FromQuery] OrderFilterDTO filter)
         {
@@ -46,11 +36,6 @@ namespace ShopifyService_API.Controllers
             }
         }
 
-        /// <summary>
-        /// Retrieves an order by its unique identifier.
-        /// </summary>
-        /// <param name="orderId">The unique identifier of the order.</param>
-        /// <returns>The order details or an error response.</returns>
         [HttpGet("{orderId}")]
         public async Task<ActionResult<Response>> GetOrderById(long orderId)
         {
@@ -75,11 +60,6 @@ namespace ShopifyService_API.Controllers
             }
         }
 
-        /// <summary>
-        /// Retrieves an order by its Shopify Order ID.
-        /// </summary>
-        /// <param name="shopifyOrderId">The Shopify Order ID.</param>
-        /// <returns>The order details or an error response.</returns>
         [HttpGet("shopify/{shopifyOrderId}")]
         public async Task<ActionResult<Response>> GetOrderByShopifyOrderId(long shopifyOrderId)
         {
@@ -102,11 +82,6 @@ namespace ShopifyService_API.Controllers
             }
         }
 
-        /// <summary>
-        /// Creates a new order.
-        /// </summary>
-        /// <param name="orderCreateDto">The order data to create.</param>
-        /// <returns>The created order or an error response.</returns>
         [HttpPost]
         public async Task<ActionResult<Response>> CreateOrder([FromBody] OrderCreateDTO orderCreateDto)
         {
@@ -134,11 +109,6 @@ namespace ShopifyService_API.Controllers
             }
         }
 
-        /// <summary>
-        /// Updates an existing order.
-        /// </summary>
-        /// <param name="orderUpdateDto">The order data to update.</param>
-        /// <returns>The updated order or an error response.</returns>
         [HttpPut]
         public async Task<ActionResult<Response>> UpdateOrder([FromBody] OrderUpdateDTO orderUpdateDto)
         {
@@ -168,11 +138,6 @@ namespace ShopifyService_API.Controllers
             }
         }
 
-        /// <summary>
-        /// Deletes an order by its unique identifier.
-        /// </summary>
-        /// <param name="orderId">The unique identifier of the order to delete.</param>
-        /// <returns>Success response or an error response.</returns>
         [HttpDelete("{orderId}")]
         public async Task<ActionResult<Response>> DeleteOrder(long orderId)
         {
@@ -197,11 +162,6 @@ namespace ShopifyService_API.Controllers
             }
         }
 
-        /// <summary>
-        /// Creates a new order action.
-        /// </summary>
-        /// <param name="orderActionCreateDto">The order action data to create.</param>
-        /// <returns>The created order action or an error response.</returns>
         [HttpPost("action")]
         public async Task<ActionResult<Response>> CreateOrderAction([FromBody] OrderActionCreateDTO orderActionCreateDto)
         {
@@ -229,11 +189,6 @@ namespace ShopifyService_API.Controllers
             }
         }
 
-        /// <summary>
-        /// Retrieves all order actions for a specific order.
-        /// </summary>
-        /// <param name="orderId">The unique identifier of the order.</param>
-        /// <returns>A list of order actions or an error response.</returns>
         [HttpGet("{orderId}/actions")]
         public async Task<ActionResult<Response>> GetOrderActions(long orderId)
         {
@@ -256,13 +211,6 @@ namespace ShopifyService_API.Controllers
             }
         }
 
-        /// <summary>
-        /// Imports an order from Shopify by its numeric order ID.
-        /// Fetches order data via GraphQL, creates Order, Customer, OrderLineItem, FulfillmentOrder, 
-        /// FulfillmentOrderLineItem entities, and determines business actions (Transfer/Drop Ship).
-        /// </summary>
-        /// <param name="request">The import request containing Shopify order ID and optional supplier location names</param>
-        /// <returns>The imported order with all related entities and created actions</returns>
         [HttpPost("import-from-shopify")]
         public async Task<ActionResult<Response>> ImportOrderFromShopify([FromBody] ShopifyOrderImportRequestDTO request)
         {

@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using PartFinder_DataAccess.Context;
 using PartFinderMicroServices_DataAccessLayer.Entities.Authentication.Register;
@@ -14,7 +14,6 @@ using PartFinderMicroServices_BusinessLogicLayer.Service.Interface;
 using Microsoft.EntityFrameworkCore;
 using X.PagedList;
 using X.PagedList.Extensions;
-using DocumentFormat.OpenXml.Spreadsheet;
 using X.PagedList.EF;
 using Microsoft.AspNetCore.Http;
 using System.IO;

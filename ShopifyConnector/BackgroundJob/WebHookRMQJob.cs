@@ -1,9 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
-using PartFinder_DataAccess.Context;
-using PartFinderMicroServices_BusinessLogicLayer.Service.Implementation;
 using PartFinderMicroServices_BusinessLogicLayer.Service.Interface;
 using PartFinderMicroServices_DataAccessLayer.Enum;
-using System;
 
 namespace ShopifyConnector.BackgroundJob
 {
@@ -26,10 +23,8 @@ namespace ShopifyConnector.BackgroundJob
 
                 _logger.LogInformation("[WebHookRMQJob] Background Worker Started for Inbound Webhooks");
 
-                // Get the service for inbound webhook processing
                 var webHookRMQService = scope.ServiceProvider.GetRequiredService<IWebHookRMQService>();
 
-                // INBOUND QUEUES - Process webhooks FROM Shopify
                 List<string> inboundQueues = new List<string>()
                 {
                     QueueName.ProductWebhook.ToString(),
@@ -38,7 +33,6 @@ namespace ShopifyConnector.BackgroundJob
                     QueueName.OrderWebhook.ToString()
                 };
 
-                // Process inbound webhooks with WebHookRMQService
                 _logger.LogInformation("[WebHookRMQJob] Starting WebHookRMQService for inbound queues: {Queues}", string.Join(", ", inboundQueues));
                 await webHookRMQService.ReceviedData(inboundQueues);
                 

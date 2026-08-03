@@ -47,9 +47,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                 _rabbitMQSetting.HostName, _rabbitMQSetting.Port);
         }
 
-        /// <summary>
-        /// Gets or creates the shared RabbitMQ connection (thread-safe)
-        /// </summary>
         private async Task<IConnection> GetConnectionAsync()
         {
             if (_connection != null && _connection.IsOpen)
@@ -66,7 +63,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                     return _connection;
                 }
 
-                // Dispose old connection if it exists
                 _connection?.Dispose();
 
                 _logger.LogInformation("[WebHookRMQService] Creating new shared RabbitMQ connection to {HostName}:{Port}", 
@@ -112,9 +108,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
             }
         }
 
-        /// <summary>
-        /// Creates a new channel from the shared connection
-        /// </summary>
         private async Task<IChannel> CreateChannelAsync()
         {
             var connection = await GetConnectionAsync();
@@ -141,7 +134,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                 IChannel dedicatedChannel = null;
                 try
                 {
-                    // Create a dedicated channel for THIS queue from the shared connection
                     dedicatedChannel = await CreateChannelAsync();
                     _logger.LogDebug("[WebHookRMQService] ✅ Channel created for queue: {QueueName}", queue);
                     
@@ -149,7 +141,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                     // Separate try-catch for queue declaration only
                     try
                     {
-                        // Declare dead-letter exchange and queue
                         var dlxName = "dlx.shopify.webhooks";
                         var dlqName = $"{queue}.dlq";
                         
@@ -184,7 +175,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                             routingKey: queue
                         );
                         
-                        // Declare main queue with DLX configuration
                         _logger.LogDebug("[WebHookRMQService] Declaring queue: {QueueName} with DLX", queue);
                         var queueArgs = new Dictionary<string, object>
                         {
@@ -206,17 +196,13 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                     {
                         _logger.LogWarning("[WebHookRMQService] ⚠️ Queue {QueueName} already exists with different configuration. Using existing queue. To update configuration, delete queue {QueueName} and restart service.", queue, queue);
                         
-                        // Dispose the old channel and create a new one from the shared connection
                         dedicatedChannel?.Dispose();
                         dedicatedChannel = await CreateChannelAsync();
                         
-                        // Declare queue with passive=true to just verify it exists
                         // This won't fail if queue already exists with different args
                         await dedicatedChannel.QueueDeclarePassiveAsync(queue);
                     }
 
-                    // Consumer setup - separate from queue declaration
-                    // Each consumer gets its own dedicated channel
                     var consumer = new AsyncEventingBasicConsumer(dedicatedChannel);
 
                     consumer.ReceivedAsync += async (model, ea) =>
@@ -225,7 +211,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                         var queueName = ea.RoutingKey;
                         var message = Encoding.UTF8.GetString(body);
 
-                        // Get retry count from message headers
                         int retryCount = 0;
                         if (ea.BasicProperties?.Headers != null && ea.BasicProperties.Headers.ContainsKey("x-retry-count"))
                         {
@@ -252,7 +237,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                             var shopifyService = scopedProvider.GetRequiredService<IShopifyService>();
                             var transactionHistoryService = scopedProvider.GetRequiredService<ITransactionHistoryService>();
 
-                            // Process INBOUND webhook messages
                             if (!string.IsNullOrEmpty(queueName))
                             {
                                 if (queueName.Equals(QueueName.ProductWebhook.ToString(), StringComparison.OrdinalIgnoreCase))
@@ -267,7 +251,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                                         transaction.ProductId = id.ToString();
                                         await transactionHistoryService.LogTransactionAsync(transaction);
 
-                                    // Process product with OEM change detection and fitment sync logic
                                     await ProcessProductWebhookWithOEMDetectionAsync(id, scopedProvider);
                                 }
                                     else
@@ -294,7 +277,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                                     var jsonBody = System.Text.Json.JsonSerializer.Deserialize<JsonElement>(body);
                                     _logger.LogInformation("[WebHookRMQService] Processing Order webhook message");
                                     
-                                    // Extract order ID for transaction logging
                                     if (jsonBody.TryGetProperty("id", out JsonElement orderIdElement))
                                     {
                                         transaction.ProductId = orderIdElement.GetInt64().ToString(); // Reusing ProductId field for order ID
@@ -305,7 +287,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                                 }
                             }
 
-                            // Acknowledge message on success
                             _logger.LogDebug("[WebHookRMQService] Acknowledging message with delivery tag: {DeliveryTag}", ea.DeliveryTag);
                             await dedicatedChannel.BasicAckAsync(ea.DeliveryTag, multiple: false);
                             _logger.LogDebug("[WebHookRMQService] Message acknowledged successfully");
@@ -332,7 +313,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                                 
                                 try
                                 {
-                                    // Publish message back to queue with incremented retry count
                                     var props = new BasicProperties
                                     {
                                         Headers = new Dictionary<string, object>
@@ -392,7 +372,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                 {
                     _logger.LogError(ex, "[WebHookRMQService] Error setting up consumer for queue {QueueName}: {Message}", queue, ex.Message);
                     
-                    // Clean up the channel if setup failed
                     dedicatedChannel?.Dispose();
                     throw;
                 }
@@ -489,14 +468,12 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
             IChannel channel = null;
             try
             {
-                // Create channel from shared connection
                 channel = await CreateChannelAsync();
                 _logger.LogDebug("[WebHookRMQService] ✅ Channel created for sending to queue: {QueueName}", queueName);
 
                 // Try to declare queue with DLX, fallback to without DLX if queue already exists
                 try
                 {
-                    // Declare dead-letter exchange and queue
                     var dlxName = "dlx.shopify.webhooks";
                     var dlqName = $"{queueName}.dlq";
                     
@@ -531,7 +508,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                         routingKey: queueName
                     );
                     
-                    // Declare main queue with DLX configuration
                     var queueArgs = new Dictionary<string, object>
                     {
                         { "x-dead-letter-exchange", dlxName },
@@ -548,7 +524,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                 {
                     _logger.LogWarning("[WebHookRMQService] Queue {QueueName} already exists without DLX. Using existing queue. To enable DLX, delete and recreate the queue.", queueName);
                     
-                    // Dispose the old channel and create a new one from the shared connection
                     channel?.Dispose();
                     channel = await CreateChannelAsync();
                     
@@ -584,9 +559,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
             }
         }
 
-        /// <summary>
-        /// Disposes the shared RabbitMQ connection and resources
-        /// </summary>
         public void Dispose()
         {
             if (_disposed)
@@ -614,27 +586,21 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
         /// Processes product webhook with OEM change detection and fitment sync enqueuing logic.
         /// Detects new products or OEM changes, and enqueues to FitmentSync queue if conditions are met.
         /// </summary>
-        /// <param name="productId">The numeric Shopify product ID</param>
-        /// <param name="shopifyService">The Shopify service instance</param>
         private async Task ProcessProductWebhookWithOEMDetectionAsync(long productId, IServiceProvider scopedProvider)
         {
             _logger.LogInformation("[WebHookRMQService] ProcessProductWebhookWithOEMDetectionAsync - Starting for product ID: {ProductId}", productId);
             var shopifyService = scopedProvider.GetRequiredService<IShopifyService>();
             try
             {
-                // Format the Shopify ID
                 string shopifyProductId = $"gid://shopify/Product/{productId}";
 
-                // Check if product exists in database
                 _logger.LogDebug("[WebHookRMQService] ProcessProductWebhookWithOEMDetectionAsync - Checking if product exists in database: {ShopifyProductId}", shopifyProductId);
                 var existingProduct = await _shopifyRepo.GetProductByShopifyIdAsync(shopifyProductId);
 
                 if (existingProduct == null)
                 {
-                    // New product detected
                     _logger.LogInformation("[WebHookRMQService] ProcessProductWebhookWithOEMDetectionAsync - NEW PRODUCT detected: {ShopifyProductId}. Importing product.", shopifyProductId);
 
-                    // Import the new product
                     await shopifyService.ImportProductByIdAsync(productId);
                     _logger.LogInformation("[WebHookRMQService] ProcessProductWebhookWithOEMDetectionAsync - Product imported successfully: {ShopifyProductId}", shopifyProductId);
 
@@ -658,11 +624,9 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                 // Existing product - check for OEM changes
                 _logger.LogInformation("[WebHookRMQService] ProcessProductWebhookWithOEMDetectionAsync - EXISTING PRODUCT found (DB ID: {ProductId}). Checking for OEM changes.", existingProduct.Id);
 
-                // Get existing variants from database with OEM data
                 var existingVariants = await _shopifyRepo.GetVariantsByProductIdAsync(existingProduct.Id);
                 _logger.LogDebug("[WebHookRMQService] ProcessProductWebhookWithOEMDetectionAsync - Found {ExistingVariantCount} existing variants in database", existingVariants?.Count ?? 0);
 
-                // Fetch latest product data from Shopify
                 _logger.LogDebug("[WebHookRMQService] ProcessProductWebhookWithOEMDetectionAsync - Fetching latest product data from Shopify");
                 string jsonData = await shopifyService.ImportProductFromShopifyAsync(productId.ToString());
 
@@ -687,7 +651,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                     return;
                 }
 
-                // Get variants from JSON
                 if (!productElement.TryGetProperty("variants", out var variantsNode) ||
                     !variantsNode.TryGetProperty("edges", out var variantEdgesNode))
                 {
@@ -711,7 +674,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                     string variantShopifyId = variantIdElement.GetString();
                     string variantTitle = variantNode.TryGetProperty("title", out var titleElement) ? titleElement.GetString() : "Unknown";
 
-                    // Find existing variant
                     var existingVariant = existingVariants?.FirstOrDefault(v => v.ShopifyId == variantShopifyId);
 
                     if (existingVariant == null)
@@ -752,13 +714,11 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                         }
                     }
 
-                    // Compare OEM values
                     if (existingOemName != newOemValue && existingProduct.Is_Piece && existingProduct.Exact_Fit)
                     {
                         var variantId = existingVariant.ShopifyId.Split('/').Last();
                         await EnqueueFitmentSyncAsync( "by_variant" , productId.ToString() , variantId);
 
-                        //oemHasChanged = true;
                         string changeLog = $"Variant '{variantTitle}' (Shopify ID: {variantShopifyId}, DB ID: {existingVariant.Id}): OEM changed from '{existingOemName ?? "null"}' to '{newOemValue ?? "null"}'";
                         oemChangesLog.Add(changeLog);
                         _logger.LogInformation("[WebHookRMQService] ProcessProductWebhookWithOEMDetectionAsync - OEM CHANGE DETECTED: {ChangeLog}", changeLog);
@@ -778,12 +738,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
             }
         }
 
-        /// <summary>
-        /// Enqueues a message to the FitmentSync queue for products that need fitment data processing.
-        /// </summary>
-        /// <param name="productId">The numeric Shopify product ID</param>
-        /// <param name="variantId">The formatted Shopify product ID (gid://shopify/Product/{id})</param>
-        /// <param name="mode">The reason for enqueuing (for logging/context)</param>
         private async Task EnqueueFitmentSyncAsync(string mode , string? productId = null , string variantId = null)
         {
             var shopifyService = _serviceProvider.GetRequiredService<IShopifyService>();
@@ -792,7 +746,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                 _logger.LogInformation("[WebHookRMQService] EnqueueFitmentSyncAsync - Enqueuing product {ProductId} to FitmentSync queue. Reason: {Reason}",
                     productId, mode);
 
-                // Create the message payload
                 var fitmentSyncMessage = new FitmentUpsertDTO
                 {
                     Mode = mode,
@@ -800,12 +753,10 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                     VariantId = variantId
                 };
 
-                // Serialize to JSON
                 string jsonMessage = System.Text.Json.JsonSerializer.Serialize(fitmentSyncMessage);
 
                 _logger.LogDebug("[WebHookRMQService] EnqueueFitmentSyncAsync - Message payload: {JsonMessage}", jsonMessage);
 
-                // Send to FitmentSync queue
                 await shopifyService.SendUpdateToQueueAsync(jsonMessage, QueueName.FitmentSync.ToString());
 
                 _logger.LogInformation("[WebHookRMQService] EnqueueFitmentSyncAsync - Successfully enqueued product {ProductId} to FitmentSync queue", productId);

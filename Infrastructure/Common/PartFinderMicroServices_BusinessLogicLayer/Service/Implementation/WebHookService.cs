@@ -14,7 +14,6 @@ using RabbitMQ.Client.Events;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-//using ThirdParty.Json.LitJson;
 
 namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
 {
@@ -54,10 +53,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
             _logger.LogInformation("[WebHookService] Service initialized successfully");
         }
 
-        /// <summary>
-        /// Processes the Shopify CollectionCreated webhook event.
-        /// </summary>
-        /// <returns></returns>
         public async Task ProcessCollectionCreatedOrUpdatedAsync(JsonElement jsonBody)
         {
             var shopifyCollectionId = jsonBody.GetProperty("admin_graphql_api_id").GetString();
@@ -65,13 +60,11 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
             try
             {
 
-                // Check if collection exists in DB
                 var existingCollection = await _shopifyRepo.GetCollectionByShopifyId(shopifyCollectionId);
 
                 if (existingCollection == null)
                 {
                     _logger.LogInformation("[WebHookService] Collection {ShopifyId} not found, creating new collection", shopifyCollectionId);
-                    // If collection does not exist, create new collection
                     var collection = await SetCollectionAsync(jsonBody);
                     await _shopifyRepo.AddCollectionsAsync(new List<Collection> { collection });
                     _logger.LogInformation("[WebHookService] Successfully created new collection {ShopifyId}", shopifyCollectionId);
@@ -79,7 +72,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                 else
                 {
                     _logger.LogInformation("[WebHookService] Collection {ShopifyId} found, updating existing collection", shopifyCollectionId);
-                    // Update existing collection
                     await UpdateCollectionAsync(existingCollection, jsonBody);
                     await _shopifyRepo.UpdateCollectionAsync(existingCollection);
                 }
@@ -91,11 +83,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
             }
         }
 
-        /// <summary>
-        /// Processes the Shopify CollectionCreated webhook event.
-        /// </summary>
-        /// <param name="root"></param>
-        /// <returns></returns>
         private async Task<Collection> SetCollectionAsync(JsonElement root)
         {
             var collection = new Collection
@@ -114,12 +101,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
             return collection;
         }
 
-        /// <summary>
-        /// Processes the Shopify CollectionCreated webhook event.
-        /// </summary>
-        /// <param name="existingCollection"></param>
-        /// <param name="root"></param>
-        /// <returns></returns>
         private async Task UpdateCollectionAsync(Collection existingCollection, JsonElement root)
         {
             try
@@ -138,11 +119,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
             }
         }
 
-        /// <summary>
-        /// update the inventory level data 
-        /// </summary>
-        /// <param name="jsonBody"></param>
-        /// <returns></returns>
         public async Task UpdateInventoryLevel(JsonElement jsonBody)
         {
             try
@@ -227,7 +203,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
         {
             try
             {
-                // Extract order ID from webhook payload
                 long shopifyOrderId = 0;
                 if (jsonBody.TryGetProperty("id", out JsonElement idElement))
                 {
@@ -241,14 +216,12 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
 
                 _logger.LogInformation("[WebHookService] ProcessOrderCreatedOrUpdatedAsync called for order ID: {ShopifyOrderId}", shopifyOrderId);
 
-                // Create request DTO for order import
                 var importRequest = new ShopifyOrderImportRequestDTO
                 {
                     ShopifyOrderId = shopifyOrderId,
                     SupplierLocationNames = new HashSet<string> { "FOURNISSEUR" } // Default supplier names
                 };
 
-                // Call OrderService to import the order
                 var result = await _orderService.ImportOrderFromShopifyAsync(importRequest);
 
                 if (result.IsSuccess)
@@ -269,13 +242,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
             }
         }
        
-        /// <summary>
-        /// check is the webhook valid
-        /// </summary>
-        /// <param name="requestBody"></param>
-        /// <param name="shopifyHmacHeader"></param>
-        /// <param name="webhookSecret"></param>
-        /// <returns></returns>
         public bool IsValidWebhook(string requestBody, string shopifyHmacHeader, string webhookSecret)
         {
             if (string.IsNullOrEmpty(shopifyHmacHeader))

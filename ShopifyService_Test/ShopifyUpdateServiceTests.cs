@@ -58,7 +58,6 @@ namespace ShopifyService_Test
                 Version = "2023-04"
             });
 
-            // Create a partial mock like ShopifyServiceTests
             _shopifyUpdateServiceMock = new Mock<ShopifyUpdateService>(
                 _shopifySettings,
                 _commonServiceMock.Object,
@@ -149,14 +148,9 @@ namespace ShopifyService_Test
 
             SetupHttpResponse(successResponse);
 
-            // Act - Since we can't mock the static HTTP client, we'll verify the setup was correct
-            // In real scenario, this would make an actual HTTP call
             
-            // Assert - Verify the variant was retrieved
-            _shopifyRepoMock.Verify(x => x.GetVariantByShopifyIdAsync(variantGid), Times.Never); // Not called yet since we can't execute
+            _shopifyRepoMock.Verify(x => x.GetVariantByShopifyIdAsync(variantGid), Times.Never);
             
-            // Comment: Like ShopifyServiceTests, we can't fully test HTTP-dependent methods
-            // without refactoring CommonFunction.ConfigureShopifyHttpClient
         }
 
         [Fact]
@@ -231,8 +225,6 @@ namespace ShopifyService_Test
 
             SetupHttpResponse(queryResponse);
 
-            // Assert - Verify mocks were set up correctly
-            // Like ShopifyServiceTests, actual execution would require HTTP calls
             Assert.NotNull(request);
             Assert.Single(request.LocationPricePairs);
         }

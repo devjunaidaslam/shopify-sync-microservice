@@ -10,9 +10,6 @@ using System.Text;
 
 namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
 {
-    /// <summary>
-    /// Service for publishing order data to Prediko microservice via RabbitMQ
-    /// </summary>
     public class PredikoOrderRMQService : IPredikoOrderRMQService
     {
         private readonly RabbitMQSetting _rabbitMQSetting;
@@ -32,15 +29,11 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                 _rabbitMQSetting.HostName, _rabbitMQSetting.Port);
         }
 
-        /// <summary>
-        /// Initializes RabbitMQ connection and channel
-        /// </summary>
         private async Task<IChannel?> GetOrCreateChannelAsync()
         {
             await _connectionLock.WaitAsync();
             try
             {
-                // Return existing channel if valid
                 if (_channel != null && _channel.IsOpen)
                 {
                     _logger.LogDebug("[PredikoOrderRMQService] Reusing existing channel");
@@ -79,7 +72,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                 _channel = await _connection.CreateChannelAsync();
                 _logger.LogDebug("[PredikoOrderRMQService] RabbitMQ channel created successfully");
 
-                // Declare queue with DLX configuration
                 await DeclareQueueWithDLXAsync(_channel);
 
                 return _channel;
@@ -95,9 +87,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
             }
         }
 
-        /// <summary>
-        /// Declares the Prediko order queue with Dead Letter Exchange configuration
-        /// </summary>
         private async Task DeclareQueueWithDLXAsync(IChannel channel)
         {
             var queueName = QueueName.PredikoOrderQueue.ToString();
@@ -106,7 +95,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
 
             _logger.LogDebug("[PredikoOrderRMQService] Declaring dead-letter exchange: {DLXName}", dlxName);
             
-            // Declare dead-letter exchange
             await channel.ExchangeDeclareAsync(
                 exchange: dlxName,
                 type: "direct",
@@ -131,7 +119,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                 arguments: dlqArgs
             );
 
-            // Bind DLQ to DLX
             await channel.QueueBindAsync(
                 queue: dlqName,
                 exchange: dlxName,
@@ -140,7 +127,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
 
             _logger.LogDebug("[PredikoOrderRMQService] Declaring main queue: {QueueName}", queueName);
             
-            // Declare main queue with DLX configuration
             var queueArgs = new Dictionary<string, object>
             {
                 { "x-dead-letter-exchange", dlxName },
@@ -159,9 +145,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                 queueName, dlqName);
         }
 
-        /// <summary>
-        /// Publishes an order message to the Prediko queue
-        /// </summary>
         public async Task<bool> PublishOrderAsync(PredikoOrderMessageDTO orderMessage)
         {
             var queueName = QueueName.PredikoOrderQueue.ToString();
@@ -178,7 +161,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                     return false;
                 }
 
-                // Serialize message to JSON
                 var messageJson = JsonConvert.SerializeObject(orderMessage, new JsonSerializerSettings
                 {
                     ReferenceLoopHandling = ReferenceLoopHandling.Ignore,
@@ -190,7 +172,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
 
                 _logger.LogDebug("[PredikoOrderRMQService] Message size: {Size} bytes", body.Length);
 
-                // Publish message with persistent delivery mode
                 var properties = new BasicProperties
                 {
                     Persistent = true,

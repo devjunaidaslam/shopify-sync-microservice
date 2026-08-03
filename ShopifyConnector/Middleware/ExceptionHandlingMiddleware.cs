@@ -18,11 +18,11 @@ namespace ShopifyConnector.Middleware
         {
             try
             {
-                await _next(httpContext); 
+                await _next(httpContext);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An unhandled exception has occurred.");
+                _logger.LogError(ex, "Unhandled exception.");
 
                 await HandleExceptionAsync(httpContext, ex);
             }
@@ -33,7 +33,7 @@ namespace ShopifyConnector.Middleware
             var response = new
             {
                 Message = "An unexpected error occurred.",
-                Detailed = exception.Message 
+                Detailed = exception.Message
             };
 
             context.Response.ContentType = "application/json";

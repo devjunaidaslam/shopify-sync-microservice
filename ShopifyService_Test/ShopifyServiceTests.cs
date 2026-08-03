@@ -183,7 +183,6 @@ namespace ShopifyService_Test
             var historyInventory = new HistoryInventory();
             _shopifyRepoMock.Setup(x => x.GetHistoryStatus()).ReturnsAsync(historyInventory);
 
-            // Create the expected Response object (based on your actual implementation)
             var expectedResponse = new Response
             {
                 Data = historyInventory,
@@ -320,7 +319,6 @@ namespace ShopifyService_Test
                 It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>()
             ), Times.Never);
         }
-
 
 
     }

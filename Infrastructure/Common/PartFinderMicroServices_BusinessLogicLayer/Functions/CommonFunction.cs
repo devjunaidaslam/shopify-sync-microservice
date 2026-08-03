@@ -70,8 +70,8 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Functions
 
         public static string GenerateSixDigitOTP()
         {
-            int min = Settings.OTPMin(); // Minimum 6-digit number
-            int max = Settings.OTPMax(); // Maximum 6-digit number
+            int min = Settings.OTPMin();
+            int max = Settings.OTPMax();
 
             Random random = new Random();
             return random.Next(min, max + 1).ToString();
@@ -130,7 +130,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Functions
             catch (Exception ex)
             {
                 Console.WriteLine($"Error moving file: {ex.Message}");
-                // Handle the exception (log it, rethrow it, etc.)
             }
 
             return result;
@@ -153,7 +152,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Functions
             password.Add(digits[random.Next(digits.Length)]);
             password.Add(symbols[random.Next(symbols.Length)]);
 
-            // Fill the rest with random chars
             for (int i = password.Count; i < length; i++)
             {
                 password.Add(allChars[random.Next(allChars.Length)]);
@@ -278,7 +276,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Functions
         }
 
 
-
       public static Func<string, string, string, HttpClient>? HttpClientFactoryOverride { get; set; }
 
       public  static HttpClient ConfigureShopifyHttpClient( string shopUrl, string token, string version)
@@ -304,10 +301,8 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Functions
             { 
                 string bucketName = Settings.AWSS3Bucket();
 
-                // Set up your AWS credentials
                 BasicAWSCredentials credentials = new BasicAWSCredentials(Settings.GetAwsAccessKey(), Settings.GetAWSSecretAccessKey());
 
-                // Create a new Amazon S3 client
                 AmazonS3Client s3Client = new AmazonS3Client(credentials, Amazon.RegionEndpoint.CACentral1);
 
 				return (bucketName, s3Client);

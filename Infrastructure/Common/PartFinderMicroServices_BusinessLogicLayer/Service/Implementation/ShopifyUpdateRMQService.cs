@@ -52,9 +52,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                 _rabbitMQSetting.HostName, _rabbitMQSetting.Port);
         }
 
-        /// <summary>
-        /// Gets or creates the shared RabbitMQ connection (thread-safe)
-        /// </summary>
         private async Task<IConnection> GetConnectionAsync()
         {
             if (_connection != null && _connection.IsOpen)
@@ -71,7 +68,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                     return _connection;
                 }
 
-                // Dispose old connection if it exists
                 _connection?.Dispose();
 
                 _logger.LogInformation("[ShopifyUpdateRMQService] Creating new shared RabbitMQ connection to {HostName}:{Port}", 
@@ -117,9 +113,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
             }
         }
 
-        /// <summary>
-        /// Creates a new channel from the shared connection
-        /// </summary>
         private async Task<IChannel> CreateChannelAsync()
         {
             var connection = await GetConnectionAsync();
@@ -146,7 +139,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                 IChannel dedicatedChannel = null;
                 try
                 {
-                    // Create a dedicated channel for THIS queue from the shared connection
                     dedicatedChannel = await CreateChannelAsync();
                     _logger.LogDebug("[ShopifyUpdateRMQService] ✅ Channel created for queue: {QueueName}", queue);
                     
@@ -154,7 +146,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                     // Separate try-catch for queue declaration only
                     try
                     {
-                        // Declare dead-letter exchange and queue
                         var dlxName = "dlx.shopify.updates";
                         var dlqName = $"{queue}.dlq";
                         
@@ -189,7 +180,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                             routingKey: queue
                         );
                         
-                        // Declare main queue with DLX configuration
                         _logger.LogDebug("[ShopifyUpdateRMQService] Declaring queue: {QueueName} with DLX", queue);
                         var queueArgs = new Dictionary<string, object>
                         {
@@ -211,17 +201,13 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                     {
                         _logger.LogWarning("[ShopifyUpdateRMQService] ⚠️ Queue {QueueName} already exists with different configuration. Using existing queue. To update configuration, delete queue {QueueName} and restart service.", queue, queue);
                         
-                        // Dispose the old channel and create a new one from the shared connection
                         dedicatedChannel?.Dispose();
                         dedicatedChannel = await CreateChannelAsync();
                         
-                        // Declare queue with passive=true to just verify it exists
                         // This won't fail if queue already exists with different args
                         await dedicatedChannel.QueueDeclarePassiveAsync(queue);
                     }
 
-                    // Consumer setup - separate from queue declaration
-                    // Each consumer gets its own dedicated channel
                     var consumer = new AsyncEventingBasicConsumer(dedicatedChannel);
 
                     consumer.ReceivedAsync += async (model, ea) =>
@@ -230,7 +216,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                         var queueName = ea.RoutingKey;
                         var message = Encoding.UTF8.GetString(body);
 
-                        // Get retry count from message headers
                         int retryCount = 0;
                         if (ea.BasicProperties?.Headers != null && ea.BasicProperties.Headers.ContainsKey("x-retry-count"))
                         {
@@ -255,7 +240,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                                 WebhookId = null
                             };
 
-                            // Process OUTBOUND update messages
                             if (!string.IsNullOrEmpty(queueName))
                             {
                                 if (queueName.Equals(QueueName.VariantPriceUpdate.ToString(), StringComparison.OrdinalIgnoreCase))
@@ -289,7 +273,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                                 }
                             }
 
-                            // Acknowledge message on success
                             _logger.LogDebug("[ShopifyUpdateRMQService] Acknowledging message with delivery tag: {DeliveryTag}", ea.DeliveryTag);
                             await dedicatedChannel.BasicAckAsync(ea.DeliveryTag, multiple: false);
                             _logger.LogDebug("[ShopifyUpdateRMQService] Message acknowledged successfully");
@@ -316,7 +299,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                                 
                                 try
                                 {
-                                    // Publish message back to queue with incremented retry count
                                     var props = new BasicProperties
                                     {
                                         Headers = new Dictionary<string, object>
@@ -376,7 +358,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                 {
                     _logger.LogError(ex, "[ShopifyUpdateRMQService] Error setting up consumer for queue {QueueName}: {Message}", queue, ex.Message);
                     
-                    // Clean up the channel if setup failed
                     dedicatedChannel?.Dispose();
                     throw;
                 }
@@ -473,14 +454,12 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
             IChannel channel = null;
             try
             {
-                // Create channel from shared connection
                 channel = await CreateChannelAsync();
                 _logger.LogDebug("[ShopifyUpdateRMQService] ✅ Channel created for sending to queue: {QueueName}", queueName);
 
                 // Try to declare queue with DLX, fallback to without DLX if queue already exists
                 try
                 {
-                    // Declare dead-letter exchange and queue
                     var dlxName = "dlx.shopify.updates";
                     var dlqName = $"{queueName}.dlq";
                     
@@ -515,7 +494,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                         routingKey: queueName
                     );
                     
-                    // Declare main queue with DLX configuration
                     var queueArgs = new Dictionary<string, object>
                     {
                         { "x-dead-letter-exchange", dlxName },
@@ -532,7 +510,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
                 {
                     _logger.LogWarning("[ShopifyUpdateRMQService] Queue {QueueName} already exists without DLX. Using existing queue. To enable DLX, delete and recreate the queue.", queueName);
                     
-                    // Dispose the old channel and create a new one from the shared connection
                     channel?.Dispose();
                     channel = await CreateChannelAsync();
                     
@@ -568,9 +545,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Service.Implementation
             }
         }
 
-        /// <summary>
-        /// Disposes the shared RabbitMQ connection and resources
-        /// </summary>
         public void Dispose()
         {
             if (_disposed)

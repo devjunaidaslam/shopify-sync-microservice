@@ -1,4 +1,3 @@
-using DocumentFormat.OpenXml.Spreadsheet;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using PartFinder_DataAccess.Context;
@@ -37,7 +36,6 @@ namespace PartFinderMicroServices_BusinessLogicLayer.Repository.Implementation
             IEnumerable<Suppliers> items = null;
             var query = _context.Suppliers.AsQueryable();
 
-            // Search filter
             if (!string.IsNullOrWhiteSpace(search))
             {
                 query = query.Where(v => v.Name.ToLower().Contains(search.ToLower()));

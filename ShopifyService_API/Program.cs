@@ -1,9 +1,7 @@
-
 using Amazon.Runtime;
 using AWS.Logger;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using PartFinder_DataAccess.Context;
@@ -28,19 +26,19 @@ namespace ShopifyService_API
             var builder = WebApplication.CreateBuilder(args);
 
             builder.Services.AddDbContextFactory<PartFinderDbContext>(opt =>
-    opt.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+                opt.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
             builder.Services.AddDbContext<PartFinderDbContext>(opt =>
-                opt.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"), builder =>
+                opt.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"), npgsql =>
                 {
-                    builder.EnableRetryOnFailure(5, TimeSpan.FromSeconds(10), null);
+                    npgsql.EnableRetryOnFailure(5, TimeSpan.FromSeconds(10), null);
                 }));
 
-
             builder.Services.Configure<ShopifySetting>(
-                  builder.Configuration.GetSection("Shopify"));
+                builder.Configuration.GetSection("Shopify"));
 
-            builder.Services.Configure<RabbitMQSetting>(builder.Configuration.GetSection("RabbitMQ"));
+            builder.Services.Configure<RabbitMQSetting>(
+                builder.Configuration.GetSection("RabbitMQ"));
 
             builder.Services.AddSingleton<PageCursorTracker>();
             builder.Services.AddScoped<IShopifyService, ShopifyService>();
@@ -48,16 +46,13 @@ namespace ShopifyService_API
             builder.Services.AddScoped<IFitmentService, FitmentService>();
             builder.Services.AddScoped<IProductService, ProductService>();
             builder.Services.AddScoped<IProductRepository, ProductRepository>();
-            
-            // Register Order services BEFORE WebHookService (dependency requirement)
+
+            // Order stack must register before WebHookService (constructor dependency).
             builder.Services.AddScoped<IOrderRepository, OrderRepository>();
             builder.Services.AddScoped<ISupplierRepository, SupplierRepository>();
-            // Note: IProductRepository already registered above at line 51
             builder.Services.AddScoped<IOrderService, OrderService>();
-            
-            // Register Prediko Order RMQ publisher service
             builder.Services.AddScoped<IPredikoOrderRMQService, PredikoOrderRMQService>();
-            
+
             builder.Services.AddScoped<IWebHookService, WebHookService>();
             builder.Services.AddScoped<ICollectionRepository, CollectionRepository>();
             builder.Services.AddScoped<ICollectionService, CollectionService>();
@@ -70,15 +65,14 @@ namespace ShopifyService_API
             builder.Services.AddScoped<IVehicleRepository, VehicleRepository>();
             builder.Services.AddScoped<IWebHookRMQService, WebHookRMQService>();
             builder.Services.AddScoped<IShopifyUpdateRMQService, ShopifyUpdateRMQService>();
-
             builder.Services.AddScoped<IShopifyRepository, ShopifyRepository>();
-            builder.Services.AddSingleton<ImportProductsBackgroundService>();
             builder.Services.AddScoped<ICommonService, CommonService>();
             builder.Services.AddScoped<ITransactionHistoryService, TransactionHistoryService>();
             builder.Services.AddScoped<ITransactionHistoryRepository, TransactionHistoryRepository>();
-            builder.Services.AddHostedService(provider => provider.GetRequiredService<ImportProductsBackgroundService>());
-           // builder.Services.AddHostedService<ShopifyRetryWorker>();
-            // Quartz job registration
+
+            builder.Services.AddSingleton<ImportProductsBackgroundService>();
+            builder.Services.AddHostedService(provider =>
+                provider.GetRequiredService<ImportProductsBackgroundService>());
 
             builder.Services.AddQuartz(q =>
             {
@@ -87,50 +81,44 @@ namespace ShopifyService_API
                 q.AddTrigger(opts => opts
                     .ForJob(jobKey)
                     .WithIdentity("ImportProductsQuartzJob-trigger")
-                    .WithCronSchedule(builder.Configuration["Quartz:ImportShopifyJob:Cron"]));
-
+                    .WithCronSchedule(
+                        builder.Configuration["Quartz:ImportShopifyJob:Cron"]
+                        ?? "0 0/10 * * * ?"));
             });
             builder.Services.AddQuartzHostedService(q => q.WaitForJobsToComplete = true);
-            // Add services to the container.
 
-            builder.Services.AddControllers();
             builder.Services.AddControllers().AddJsonOptions(options =>
             {
                 options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
             });
 
-
             #region JWT Authentication
 
             var jwtSettings = builder.Configuration.GetSection("JwtSettings");
-            var key = Encoding.UTF8.GetBytes(jwtSettings["Secret"] ?? throw new InvalidOperationException("JWT Secret is missing"));
+            var key = Encoding.UTF8.GetBytes(
+                jwtSettings["Secret"] ?? throw new InvalidOperationException("JWT Secret is missing"));
+
             builder.Services.AddAuthentication(options =>
             {
                 options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
                 options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
                 options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
             })
-                .AddJwtBearer(options =>
+            .AddJwtBearer(options =>
+            {
+                options.RequireHttpsMetadata = false;
+                options.SaveToken = true;
+                options.TokenValidationParameters = new TokenValidationParameters
                 {
-                    options.RequireHttpsMetadata = false;
-                    options.SaveToken = true;
-                    options.TokenValidationParameters = new TokenValidationParameters
-                    {
-                        ValidateIssuerSigningKey = true,
-                        IssuerSigningKey = new SymmetricSecurityKey(key),
-                        ValidateIssuer = true,
-                        ValidateAudience = true,
-                        ValidIssuer = jwtSettings["Issuer"],
-                        ValidAudience = jwtSettings["Audience"],
-                        ClockSkew = TimeSpan.Zero
-                    };
-                });
-
-            builder.Services.AddAuthorization();
-
-            #endregion
-
-            #region JWT Authorization - 2
+                    ValidateIssuerSigningKey = true,
+                    IssuerSigningKey = new SymmetricSecurityKey(key),
+                    ValidateIssuer = true,
+                    ValidateAudience = true,
+                    ValidIssuer = jwtSettings["Issuer"],
+                    ValidAudience = jwtSettings["Audience"],
+                    ClockSkew = TimeSpan.Zero
+                };
+            });
 
             builder.Services.AddAuthorization(options =>
             {
@@ -140,44 +128,42 @@ namespace ShopifyService_API
                     policy.RequireAuthenticatedUser();
                 });
             });
+
+            #endregion
+
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen(option =>
             {
-                option.SwaggerDoc("v1", new OpenApiInfo { Title = "Part Finder API's", Version = "v1" });
-
-                //var xmlFile = $"{System.Reflection.Assembly.GetExecutingAssembly().GetName().Name}.xml";
-                //var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
-                //option.IncludeXmlComments(xmlPath);
+                option.SwaggerDoc("v1", new OpenApiInfo
+                {
+                    Title = "Shopify Sync API",
+                    Version = "v1"
+                });
 
                 option.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
                 {
                     In = ParameterLocation.Header,
-                    Description = "Please enter a valid token",
+                    Description = "Enter a JWT bearer token",
                     Name = "Authorization",
                     Type = SecuritySchemeType.Http,
                     BearerFormat = "JWT",
                     Scheme = "Bearer"
                 });
                 option.AddSecurityRequirement(new OpenApiSecurityRequirement
-    {
-        {
-            new OpenApiSecurityScheme
-            {
-                Reference = new OpenApiReference
                 {
-                    Type = ReferenceType.SecurityScheme,
-                    Id = "Bearer"
-                }
-            },
-            new string[]{}
-        }
-    });
+                    {
+                        new OpenApiSecurityScheme
+                        {
+                            Reference = new OpenApiReference
+                            {
+                                Type = ReferenceType.SecurityScheme,
+                                Id = "Bearer"
+                            }
+                        },
+                        Array.Empty<string>()
+                    }
+                });
             });
-
-            #endregion
-            // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-            builder.Services.AddEndpointsApiExplorer();
-            builder.Services.AddSwaggerGen();
 
             builder.Logging.ClearProviders();
             builder.Logging.AddConsole();
@@ -199,24 +185,20 @@ namespace ShopifyService_API
 
             var app = builder.Build();
 
-            app.UsePathBase("/shopify"); // 👈 this makes sure all paths are aware of the base path
+            app.UsePathBase("/shopify");
             app.UseMiddleware<ExceptionHandlingMiddleware>();
 
-            // Configure the HTTP request pipeline.
             app.UseSwagger();
             app.UseSwaggerUI(c =>
             {
                 c.SwaggerEndpoint("/shopify/swagger/v1/swagger.json", "Shopify API V1");
                 c.RoutePrefix = "swagger";
             });
-           
+
             app.UseHttpsRedirection();
-
+            app.UseAuthentication();
             app.UseAuthorization();
-
-
             app.MapControllers();
-
             app.Run();
         }
     }

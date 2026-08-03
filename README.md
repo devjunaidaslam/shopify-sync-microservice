@@ -1,81 +1,56 @@
 # shopify-sync-microservice
-# Shopify Integration — Resume Project
 
-A .NET 8 microservices system for bidirectional Shopify synchronization using Admin GraphQL API, RabbitMQ message queues, and PostgreSQL.
+.NET 8 services for bidirectional Shopify synchronization via Admin GraphQL, RabbitMQ, and PostgreSQL.
 
 ## Architecture
 
-Built as a .NET microservices system with two separate APIs:
-
 | Service | Role |
 |---------|------|
-| **ShopifyService_API** | Data import & outbound updates to Shopify |
-| **ShopifyConnector** | Receives inbound webhooks from Shopify and processes them via message queues |
+| **ShopifyService_API** | Catalog import and outbound updates to Shopify |
+| **ShopifyConnector** | Inbound Shopify webhooks and RabbitMQ consumers |
 
-### Shopify GraphQL API Integration
+### Inbound (Shopify → system)
 
-Integrated with Shopify Admin GraphQL API for products, variants, collections, locations, vendors, inventory levels, orders, metafields, and product images. Uses cursor-based pagination with configurable page sizes and concurrency limits.
+1. Webhook endpoints receive Product, Collection, Inventory Level, and Order events
+2. Payloads are validated with HMAC-SHA256
+3. Messages are published to RabbitMQ for async handling
+4. `WebHookRMQService` consumes queues and updates the local database
+5. OEM metafield changes on variants can trigger FitmentSync
 
-### Inbound Flow (Shopify → System)
+### Outbound (system → Shopify)
 
-1. Webhook Controller receives real-time events (Product, Collection, Inventory Level, Order)
-2. Each webhook is validated using HMAC-SHA256 signature verification
-3. Validated payloads are pushed to RabbitMQ queues for async processing
-4. `WebHookRMQService` consumes queues and delegates to the appropriate service
-5. OEM change detection compares existing variant OEM metafields with incoming data and auto-triggers FitmentSync when changes are detected
+1. REST endpoints enqueue variant price, location price, inventory, and fitment updates
+2. `ShopifyUpdateRMQService` consumes outbound queues and calls Shopify GraphQL
+3. Successful updates sync related fields back to PostgreSQL
 
-### Outbound Flow (System → Shopify)
+### Messaging
 
-1. REST API endpoints accept update requests (variant prices, location-based prices via metafields, inventory levels)
-2. Requests are serialized and published to RabbitMQ outbound queues
-3. `ShopifyUpdateRMQService` consumes and executes updates against Shopify GraphQL API
-4. Supports Variant Price Update, Variant Location Price Update, Inventory Level Update, and Fitment Sync
+- Named inbound/outbound queues with a dedicated queue enum
+- Shared RabbitMQ connection; dedicated channels per consumer
+- Dead-letter queues (14-day TTL) and retry (up to 5) with transient vs permanent classification
+- Manual ack (`BasicAck` / `BasicNack`)
 
-### RabbitMQ Message Broker
-
-- 8 named queues (4 inbound, 4 outbound) with a dedicated enum for queue names
-- Shared long-lived connection with thread-safe double-check locking pattern
-- Dead Letter Queues (DLQ) with 14-day TTL for failed messages
-- Smart retry mechanism (up to 5 retries) with transient vs permanent error classification (5xx, 429, 408, timeouts)
-- Manual acknowledgment (BasicAck / BasicNack) for reliable message processing
-- Dedicated channels per queue consumer
-
-### Background Jobs
+### Background work
 
 | Job | Description |
 |-----|-------------|
-| `WebHookRMQJob` | Long-running BackgroundService consuming inbound webhook queues |
-| `ShopifyUpdateRMQJob` | Long-running BackgroundService consuming outbound update queues |
-| `ImportProductsBackgroundService` | Triggers bulk product import with optional date filtering |
+| `WebHookRMQJob` | Consumes inbound webhook queues |
+| `ShopifyUpdateRMQJob` | Consumes outbound update queues |
+| `ImportProductsBackgroundService` / Quartz job | Bulk product import (optional date filter) |
 
-### Data Sync & Import
-
-- Bulk import of Products, Variants, Collections, Locations, Vendors, and Product Images from Shopify
-- Single product import by ID
-- Failed page retry queue (`ShopifyDataQueue`) for resilient imports
-- Transaction history logging for every queue message processed
-- Local database sync for variant prices and inventory levels after successful Shopify updates
-
-### Unit Tests (xUnit + Moq)
-
-- **ShopifyServiceTests** — ImportCollections, ImportLocations, ImportVendors, ImportProductById (success + not found), GetHistoryStatus (success + exception)
-- **ShopifyUpdateServiceTests** — UpdateVariantPrices (not found + success), UpdateInventoryLevels (empty + null), UpdateVariantLocationPrice, UpdateShopifyVariantMetaField, GetInventoryItemId
-
-## Key Skills Demonstrated
-
-C# .NET · Microservices Architecture · Shopify Admin GraphQL API · RabbitMQ · Webhook Processing · HMAC Signature Verification · Dead Letter Queues & Retry Patterns · Background Services · Entity Framework Core · Repository Pattern · Dependency Injection · Unit Testing (xUnit, Moq) · Async/Concurrent Programming · Structured Logging
-
-## Solution Structure
+## Solution layout
 
 ```
-ResumeShopifySyncProject/
-├── ShopifyService_API/          # Import & outbound update API
-├── ShopifyConnector/            # Webhook receiver + RMQ consumers
-├── ShopifyService_Test/         # xUnit tests
+shopify-sync-microservice/
+├── ShopifyService_API/
+├── ShopifyConnector/
+├── ShopifyService_Test/
 └── Infrastructure/Common/
     ├── PartFinderMicroServices_BusinessLogicLayer/
     └── PartFinderMicroServices_DataAccessLayer/
 ```
+
+> Note: BLL/DAL project names retain the historical `PartFinder*` prefix from the parent product this slice was extracted from.
 
 ## Prerequisites
 
@@ -84,10 +59,10 @@ ResumeShopifySyncProject/
 - RabbitMQ
 - Shopify Admin API access token and webhook secret
 
-## Getting Started
+## Getting started
 
 1. Clone the repository
-2. Copy `appsettings.json` values for your environment (never commit real secrets)
+2. Set configuration in `appsettings.json` or environment variables (never commit real secrets)
 3. Apply EF migrations:
 
 ```bash
@@ -97,29 +72,36 @@ dotnet ef database update --project Infrastructure/Common/PartFinderMicroService
 4. Build and test:
 
 ```bash
-dotnet build
-dotnet test
+dotnet build ShopifySync.sln
+dotnet test ShopifySync.sln
 ```
 
-5. Run APIs:
+5. Run:
 
 ```bash
 dotnet run --project ShopifyService_API
 dotnet run --project ShopifyConnector
 ```
 
-## Configuration
+Default path bases: `/shopify` (API) and `/shopifyconnector` (Connector). Swagger UI is at `/swagger` under each path base.
 
-Set these in `appsettings.json` or environment variables:
+## Configuration
 
 | Key | Description |
 |-----|-------------|
 | `ConnectionStrings:DefaultConnection` | PostgreSQL connection string |
 | `Shopify:Token` | Shopify Admin API access token |
-| `Shopify:ShopName` | Shopify shop subdomain |
+| `Shopify:ShopName` | Shop subdomain |
 | `Shopify:WebHookSecret` | HMAC secret for webhook validation |
-| `RabbitMQ:*` | RabbitMQ host, credentials, port (`UseSsl: true` for AWS Amazon MQ on port 5671) |
+| `JwtSettings:*` | JWT issuer/audience/secret (ShopifyService_API) |
+| `RabbitMQ:*` | Host, credentials, port (`UseSsl: true` for Amazon MQ on 5671) |
+| `Quartz:ImportShopifyJob:Cron` | Cron for scheduled import |
+| `AppSettings:AWS_*` / `AWS:*` | Optional CloudWatch logging |
+
+## Tests
+
+xUnit + Moq coverage includes import/update happy paths and failure cases in `ShopifyService_Test`.
 
 ## License
 
-Portfolio / resume demonstration project. Extracted from a larger production codebase.
+MIT — portfolio extraction from a larger production codebase.

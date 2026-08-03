@@ -5,9 +5,6 @@ using PartFinderMicroServices_DataAccessLayer.Entities.DTOs.TransactionHistoryDT
 
 namespace ShopifyService_API.Controllers
 {
-    /// <summary>
-    /// Controller for managing Shopify transaction history
-    /// </summary>
     [Route("api/[controller]")]
     [ApiController]
     public class TransactionHistoryController : ControllerBase
@@ -16,22 +13,12 @@ namespace ShopifyService_API.Controllers
         private readonly ICommonService _commonService;
         private readonly ResponseMessageList _apiResponseMessageList = new();
 
-        /// <summary>
-        /// Initializes a new instance of the <see cref="TransactionHistoryController"/> class.
-        /// </summary>
-        /// <param name="transactionHistoryService">Service for transaction history operations.</param>
-        /// <param name="commonService">Service for logging and common operations.</param>
         public TransactionHistoryController(ITransactionHistoryService transactionHistoryService, ICommonService commonService)
         {
             _transactionHistoryService = transactionHistoryService;
             _commonService = commonService;
         }
 
-        /// <summary>
-        /// get transaction history with filter
-        /// </summary>
-        /// <param name="filter"></param>
-        /// <returns></returns>
         [HttpGet]
         public async Task<ActionResult<Response>> GetTransactions([FromQuery] TransactionFilterDto filter)
         {
@@ -47,11 +34,6 @@ namespace ShopifyService_API.Controllers
             }
         }
 
-        /// <summary>
-        /// Cleans up old transaction history records based on retention policy.
-        /// </summary>
-        /// <param name="retentionDays">Number of days to retain records.</param>
-        /// <returns>Number of records cleaned up or an error response.</returns>
         [HttpDelete("cleanup")]
         public async Task<ActionResult<Response>> CleanupOldRecords([FromQuery] int retentionDays = 30)
         {
