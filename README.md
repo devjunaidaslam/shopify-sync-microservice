@@ -46,11 +46,9 @@ shopify-sync-microservice/
 ├── ShopifyConnector/
 ├── ShopifyService_Test/
 └── Infrastructure/Common/
-    ├── PartFinderMicroServices_BusinessLogicLayer/
-    └── PartFinderMicroServices_DataAccessLayer/
+    ├── ShopifySync_BusinessLogicLayer/
+    └── ShopifySync_DataAccessLayer/
 ```
-
-> Note: BLL/DAL project names retain the historical `PartFinder*` prefix from the parent product this slice was extracted from.
 
 ## Prerequisites
 
@@ -66,7 +64,7 @@ shopify-sync-microservice/
 3. Apply EF migrations:
 
 ```bash
-dotnet ef database update --project Infrastructure/Common/PartFinderMicroServices_DataAccessLayer
+dotnet ef database update --project Infrastructure/Common/ShopifySync_DataAccessLayer
 ```
 
 4. Build and test:

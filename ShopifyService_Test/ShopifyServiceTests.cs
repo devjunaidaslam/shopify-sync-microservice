@@ -8,14 +8,14 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Options;
 using Moq;
 using Moq.Protected;
-using PartFinderMicroServices_BusinessLogicLayer.Functions;
-using PartFinderMicroServices_BusinessLogicLayer.Service.Implementation;
-using PartFinderMicroServices_BusinessLogicLayer.Repository.Interface;
-using PartFinderMicroServices_BusinessLogicLayer.Service.Interface;
-using PartFinderMicroServices_DataAccessLayer.Model;
+using ShopifySync_BusinessLogicLayer.Functions;
+using ShopifySync_BusinessLogicLayer.Service.Implementation;
+using ShopifySync_BusinessLogicLayer.Repository.Interface;
+using ShopifySync_BusinessLogicLayer.Service.Interface;
+using ShopifySync_DataAccessLayer.Model;
 using Xunit;
 using System.Text;
-using PartFinderMicroServices_DataAccessLayer.Entities;
+using ShopifySync_DataAccessLayer.Entities;
 using Microsoft.Extensions.Logging;
 
 namespace ShopifyService_Test

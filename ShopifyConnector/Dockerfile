@@ -17,8 +17,8 @@ FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["ShopifyConnector/ShopifyConnector.csproj", "ShopifyConnector/"]
-COPY ["Infrastructure/Common/PartFinderMicroServices_BusinessLogicLayer/PartFinderMicroServices_BusinessLogicLayer.csproj", "Infrastructure/Common/PartFinderMicroServices_BusinessLogicLayer/"]
-COPY ["Infrastructure/Common/PartFinderMicroServices_DataAccessLayer/PartFinderMicroServices_DataAccessLayer.csproj", "Infrastructure/Common/PartFinderMicroServices_DataAccessLayer/"]
+COPY ["Infrastructure/Common/ShopifySync_BusinessLogicLayer/ShopifySync_BusinessLogicLayer.csproj", "Infrastructure/Common/ShopifySync_BusinessLogicLayer/"]
+COPY ["Infrastructure/Common/ShopifySync_DataAccessLayer/ShopifySync_DataAccessLayer.csproj", "Infrastructure/Common/ShopifySync_DataAccessLayer/"]
 RUN dotnet restore "./ShopifyConnector/ShopifyConnector.csproj"
 COPY . .
 WORKDIR "/src/ShopifyConnector"

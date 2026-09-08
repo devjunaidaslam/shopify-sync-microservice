@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using PartFinder_DataAccess.Context;
+using ShopifySync_DataAccess.Context;
 
 namespace ShopifyConnector.Controllers
 {
@@ -8,10 +8,10 @@ namespace ShopifyConnector.Controllers
     [ApiController]
     public class HealthController : ControllerBase
     {
-        private readonly IDbContextFactory<PartFinderDbContext> _dbContextFactory;
+        private readonly IDbContextFactory<ShopifySyncDbContext> _dbContextFactory;
         private readonly ILogger<HealthController> _logger;
 
-        public HealthController(IDbContextFactory<PartFinderDbContext> dbContextFactory, ILogger<HealthController> logger)
+        public HealthController(IDbContextFactory<ShopifySyncDbContext> dbContextFactory, ILogger<HealthController> logger)
         {
             _dbContextFactory = dbContextFactory;
             _logger = logger;

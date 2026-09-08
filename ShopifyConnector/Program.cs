@@ -2,13 +2,13 @@ using Amazon.Runtime;
 using AWS.Logger;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
-using PartFinder_DataAccess.Context;
-using PartFinderMicroServices_BusinessLogicLayer.Repository.Implementation;
-using PartFinderMicroServices_BusinessLogicLayer.Repository.Interface;
-using PartFinderMicroServices_BusinessLogicLayer.Service.Implementation;
-using PartFinderMicroServices_BusinessLogicLayer.Service.Interface;
-using PartFinderMicroServices_DataAccessLayer.Entities.RabbitMQ;
-using PartFinderMicroServices_DataAccessLayer.Model;
+using ShopifySync_DataAccess.Context;
+using ShopifySync_BusinessLogicLayer.Repository.Implementation;
+using ShopifySync_BusinessLogicLayer.Repository.Interface;
+using ShopifySync_BusinessLogicLayer.Service.Implementation;
+using ShopifySync_BusinessLogicLayer.Service.Interface;
+using ShopifySync_DataAccessLayer.Entities.RabbitMQ;
+using ShopifySync_DataAccessLayer.Model;
 using ShopifyConnector.BackgroundJob;
 using ShopifyConnector.Middleware;
 
@@ -53,10 +53,10 @@ builder.Services.AddTransient<ICommonService, CommonService>();
 builder.Services.AddScoped<ITransactionHistoryService, TransactionHistoryService>();
 builder.Services.AddScoped<ITransactionHistoryRepository, TransactionHistoryRepository>();
 
-builder.Services.AddDbContextFactory<PartFinderDbContext>(opt =>
+builder.Services.AddDbContextFactory<ShopifySyncDbContext>(opt =>
     opt.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-builder.Services.AddDbContext<PartFinderDbContext>(opt =>
+builder.Services.AddDbContext<ShopifySyncDbContext>(opt =>
     opt.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"), npgsql =>
     {
         npgsql.EnableRetryOnFailure(5, TimeSpan.FromSeconds(10), null);

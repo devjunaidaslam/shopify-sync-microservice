@@ -1,11 +1,11 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json;
-using PartFinderMicroServices_BusinessLogicLayer.Service.Interface;
-using PartFinderMicroServices_DataAccessLayer.Entities;
-using PartFinderMicroServices_DataAccessLayer.Entities.DTOs.UpdateInventoryRequest;
-using PartFinderMicroServices_DataAccessLayer.Entities.DTOs.UpdatePriceRequest;
-using PartFinderMicroServices_DataAccessLayer.Entities.DTOs.UpdateVariantLocationPriceRequest;
-using PartFinderMicroServices_DataAccessLayer.Enum;
+using ShopifySync_BusinessLogicLayer.Service.Interface;
+using ShopifySync_DataAccessLayer.Entities;
+using ShopifySync_DataAccessLayer.Entities.DTOs.UpdateInventoryRequest;
+using ShopifySync_DataAccessLayer.Entities.DTOs.UpdatePriceRequest;
+using ShopifySync_DataAccessLayer.Entities.DTOs.UpdateVariantLocationPriceRequest;
+using ShopifySync_DataAccessLayer.Enum;
 
 namespace ShopifyService_API.Controllers
 {

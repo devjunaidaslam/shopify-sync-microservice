@@ -4,14 +4,14 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-using PartFinder_DataAccess.Context;
-using PartFinderMicroServices_BusinessLogicLayer.Infrastructure.Job.Background;
-using PartFinderMicroServices_BusinessLogicLayer.Repository.Implementation;
-using PartFinderMicroServices_BusinessLogicLayer.Repository.Interface;
-using PartFinderMicroServices_BusinessLogicLayer.Service.Implementation;
-using PartFinderMicroServices_BusinessLogicLayer.Service.Interface;
-using PartFinderMicroServices_DataAccessLayer.Entities.RabbitMQ;
-using PartFinderMicroServices_DataAccessLayer.Model;
+using ShopifySync_DataAccess.Context;
+using ShopifySync_BusinessLogicLayer.Infrastructure.Job.Background;
+using ShopifySync_BusinessLogicLayer.Repository.Implementation;
+using ShopifySync_BusinessLogicLayer.Repository.Interface;
+using ShopifySync_BusinessLogicLayer.Service.Implementation;
+using ShopifySync_BusinessLogicLayer.Service.Interface;
+using ShopifySync_DataAccessLayer.Entities.RabbitMQ;
+using ShopifySync_DataAccessLayer.Model;
 using Quartz;
 using ShopifyService_API.Middleware;
 using System.Text;
@@ -25,10 +25,10 @@ namespace ShopifyService_API
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            builder.Services.AddDbContextFactory<PartFinderDbContext>(opt =>
+            builder.Services.AddDbContextFactory<ShopifySyncDbContext>(opt =>
                 opt.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-            builder.Services.AddDbContext<PartFinderDbContext>(opt =>
+            builder.Services.AddDbContext<ShopifySyncDbContext>(opt =>
                 opt.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"), npgsql =>
                 {
                     npgsql.EnableRetryOnFailure(5, TimeSpan.FromSeconds(10), null);

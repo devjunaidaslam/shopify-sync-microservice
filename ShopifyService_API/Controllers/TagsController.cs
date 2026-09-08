@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
-using PartFinderMicroServices_BusinessLogicLayer.Service.Interface;
-using PartFinderMicroServices_DataAccessLayer.Entities;
+using ShopifySync_BusinessLogicLayer.Service.Interface;
+using ShopifySync_DataAccessLayer.Entities;
 
 namespace ShopifyService_API.Controllers
 {

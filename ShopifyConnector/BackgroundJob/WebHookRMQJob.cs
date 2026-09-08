@@ -1,6 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
-using PartFinderMicroServices_BusinessLogicLayer.Service.Interface;
-using PartFinderMicroServices_DataAccessLayer.Enum;
+using ShopifySync_BusinessLogicLayer.Service.Interface;
+using ShopifySync_DataAccessLayer.Enum;
 
 namespace ShopifyConnector.BackgroundJob
 {

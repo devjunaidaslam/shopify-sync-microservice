@@ -1,13 +1,13 @@
-﻿using Amazon.Runtime.Internal.Util;
+using Amazon.Runtime.Internal.Util;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Moq;
-using PartFinderMicroServices_BusinessLogicLayer.Service.Implementation;
-using PartFinderMicroServices_BusinessLogicLayer.Service.Interface;
-using PartFinderMicroServices_DataAccessLayer.Entities;
-using PartFinderMicroServices_DataAccessLayer.Entities.DTOs.ProductDTO;
-using PartFinderMicroServices_DataAccessLayer.Model;
+using ShopifySync_BusinessLogicLayer.Service.Implementation;
+using ShopifySync_BusinessLogicLayer.Service.Interface;
+using ShopifySync_DataAccessLayer.Entities;
+using ShopifySync_DataAccessLayer.Entities.DTOs.ProductDTO;
+using ShopifySync_DataAccessLayer.Model;
 using ShopifyService_API.Controllers;
 using Xunit;
 

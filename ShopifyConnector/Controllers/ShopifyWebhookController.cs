@@ -1,9 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
-using PartFinderMicroServices_BusinessLogicLayer.Service.Interface;
-using PartFinderMicroServices_DataAccessLayer.Entities;
-using PartFinderMicroServices_DataAccessLayer.Enum;
-using PartFinderMicroServices_DataAccessLayer.Model;
+using ShopifySync_BusinessLogicLayer.Service.Interface;
+using ShopifySync_DataAccessLayer.Entities;
+using ShopifySync_DataAccessLayer.Enum;
+using ShopifySync_DataAccessLayer.Model;
 
 namespace ShopifyConnector.Controllers
 {

@@ -1,0 +1,14 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace ShopifySync_DataAccessLayer.Entities.DTOs.OEMDTO
+{
+    public class OEMDTO
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+    }
+}

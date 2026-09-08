@@ -1,4 +1,4 @@
-﻿
+
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
@@ -13,9 +13,9 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Infrastructure", "Infrastru
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Common", "Common", "{6E791F49-9B00-1886-143D-1E9DFAEC454B}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PartFinderMicroServices_BusinessLogicLayer", "Infrastructure\Common\PartFinderMicroServices_BusinessLogicLayer\PartFinderMicroServices_BusinessLogicLayer.csproj", "{8A752223-0A51-4BB9-BCFC-52272DA51CD9}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ShopifySync_BusinessLogicLayer", "Infrastructure\Common\ShopifySync_BusinessLogicLayer\ShopifySync_BusinessLogicLayer.csproj", "{8A752223-0A51-4BB9-BCFC-52272DA51CD9}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PartFinderMicroServices_DataAccessLayer", "Infrastructure\Common\PartFinderMicroServices_DataAccessLayer\PartFinderMicroServices_DataAccessLayer.csproj", "{66F0A9DB-2451-46C8-8A86-9ACF092880E9}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ShopifySync_DataAccessLayer", "Infrastructure\Common\ShopifySync_DataAccessLayer\ShopifySync_DataAccessLayer.csproj", "{66F0A9DB-2451-46C8-8A86-9ACF092880E9}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
